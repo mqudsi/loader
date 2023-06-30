@@ -2,7 +2,7 @@
 
 This is an all-in-one fully-async JS/CSS loader with no dependencies, that can be used to load (or dynamically load!) AMD, CommonJS, nodejs, or regular "include this script" JS libraries. It is compatible with the regular AMD `require()` syntax but also provides a fully async interface to the same (`requireAsync()`) as well as overrides for recursive asynchronous loading of target library dependencies.
 
-This project also supports the use of "import maps" to declare the remote URL to any named (top-level or transitive) `require()` dependency.
+This project also supports the use of "import maps" to declare the remote URL to any named (top-level or transitive) `require()` dependency, allowing you to directly use nodejs dependencies (directly or transitively) in the browser, without a build system of any sort.
 
 The loader script itself is compatible with IE6 and above, but a JSON polyfill is required under IE6 and IE7 or Firefox versions 3 or lower if you want to use the import map ability to facilitate directly loading nodejs dependencies in the browser (see below).
 
