@@ -36,7 +36,7 @@ async function innerDefine(name: string, dependencies: string[], callback: Varia
             exportsImported = true;
             return exports;
         } else if (dependency === "require") {
-            return require;
+            return (<any>window).require;
         } else {
             // Handle relative paths, e.g. ./foo/bar requesting ./baz should map to ./foo/baz
             if (dependency.startsWith("./")) {
@@ -169,7 +169,8 @@ async function timed_await<T>(promise: Promise<T>, name: string) {
     return result;
 }
 
-function require(_1: any, _2?: any): any {
+// tsc complains if we define a top-level `require` directly, so rely on `window` contents being directly accessible instead.
+(<any>window).require = function(_1: any, _2?: any): any {
     if (arguments.length === 1) {
         if (typeof _1 !== 'string') {
             throw new Error("Unsupported require call!");
@@ -190,7 +191,7 @@ Use \`requireAsync(name, callback?)\` or \`require([name], callback?)\` instead.
 }
 
 const hasExtensionRegex = /\/[^\/]+\./;
-async function requireAsync(names: string|string[], callback?: VariableFunction, parent?: string): Promise<any> {
+export async function requireAsync(names: string|string[], callback?: VariableFunction, parent?: string): Promise<any> {
     // ES3 and ES5 don't support accessing `arguments` in an async function
     console.log("requireAsync called with arguments ", names, callback, parent);
 
