@@ -31,7 +31,9 @@ export function load(urls: string[] | string): Promise<void | void[]> {
 
 async function loadSingle(url: string) {
     let start;
-    if (window.console && Date.prototype.getTime) {
+    // tsc isn't aware that the prototype may not be defined on older browsers,
+    // so it complains that the expression is always true. Cast to `unknown`.
+    if (window.console && <unknown>Date.prototype.getTime) {
         // console.log(`Starting load of ${url}`);
         start = new Date().getTime();
     }
@@ -110,7 +112,7 @@ function loadCss(url: string) {
             if (link.media !== "screen") {
                 link.media = "screen";
             }
-            resolve();
+            resolve({});
         });
         attach(link, "error", reject);
 
@@ -138,7 +140,7 @@ function loadjs(url: string) {
                     || s.readyState === "complete"
                     || s.readyState === "completed") {
                     head.appendChild(script);
-                    resolve();
+                    resolve({});
                 } else if (s.readyState === "loaded") {
                     // Attempting to enumerate the children of the script tag
                     // will result in s.readyState changing to "loading" if
@@ -154,7 +156,7 @@ function loadjs(url: string) {
                         // if an error was encountered.
                         reject();
                     } else {
-                        resolve();
+                        resolve({});
                     }
                 }
             };
