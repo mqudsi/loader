@@ -2,7 +2,7 @@
 
 This is an all-in-one fully-async JS/CSS loader with no dependencies, that can be used to load (or dynamically load!) AMD, CommonJS, nodejs, or regular "include this script" JS libraries. It is compatible with the regular AMD `require()` syntax but also provides a fully async interface to the same (`requireAsync()`) as well as overrides for recursive asynchronous loading of target library dependencies.
 
-The loader script itself is compatible with IE6 and above, but a JSON polyfill is required under IE6 and IE7 or Firefox versions 3 or lower.
+The loader script itself is compatible with IE6 and above, but a JSON polyfill is required under IE6 and IE7 or Firefox versions 3 or lower if you want to use the import map ability to facilitate directly loading nodejs dependencies in the browser (see below).
 
 This project also supports the use of "import maps" to declare the remote URL to any named (top-level or transitive) `require()` dependency.
 
@@ -16,7 +16,7 @@ This library should be (synchronously) loaded via a `<script src="..."></script>
 
 <!-- Use it to load your own application or library -->
 <script type="text/javascript">
-	require("js/app.js", App => {
+	require(["js/app.js"], App => {
 		var app = new App();
 		// ...
 	});
@@ -28,8 +28,27 @@ You can use the above syntax even if the library you are loading is not an AMD o
 ```html
 <script type="text/javascript" src="./loader.js"></script>
 <script type="text/javascript">
-	require("js/jquery.js", () => {
+	require(["js/jquery.js"], () => {
 		$("#app").show();
+	});
+</script>
+```
+
+# Loading a browser script and its assets
+
+Scripts that are intended to be "just included" in the HTML can be loaded with the `require()` interface, along with their other assets such as CSS files:
+
+```html
+<script type="text/javascript" src="./loader.js"></script>
+
+<script type="text/javascript">
+	// Load SweetAlert and the CSS theme
+	require([
+		"https://unpkg.com/sweetalert/dist/sweetalert.min.js",
+		"https://cdn.jsdelivr.net/npm/@sweetalert2/theme-dark@5/dark.css"
+	], function () {
+		// Use SweetAlert. Both it and the theme have been loaded at this point.
+		swal("Hello world!");
 	});
 </script>
 ```
@@ -74,7 +93,7 @@ The biggest obstacle to using node packages in the browser is the difficulty wit
 
 <!-- Now we can import our library which was compiled w/ dependencies on the node packages named above -->
 <script type="text/javascript">
-	require("./app.js", App => {
+	require(["./app.js"], App => {
 		// `require()` will intercept calls to dependencies, e.g. `require("vue")` will load `vue.min.js`
 		// from the path declared above.
 		var app = new App();
