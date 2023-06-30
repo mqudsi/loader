@@ -16,10 +16,10 @@ This library should be (synchronously) loaded via a `<script src="..."></script>
 
 <!-- Use it to load your own application or library -->
 <script type="text/javascript">
-    require("js/app.js", App => {
-        var app = new App();
-        // ...
-    });
+	require("js/app.js", App => {
+		var app = new App();
+		// ...
+	});
 </script>
 ```
 
@@ -28,9 +28,9 @@ You can use the above syntax even if the library you are loading is not an AMD o
 ```html
 <script type="text/javascript" src="./loader.js"></script>
 <script type="text/javascript">
-    require("js/jquery.js", () => {
-        $("#app").show();
-    });
+	require("js/jquery.js", () => {
+		$("#app").show();
+	});
 </script>
 ```
 
@@ -52,34 +52,34 @@ async function foo() {
 The biggest obstacle to using node packages in the browser is the difficulty with transitively loading dependencies as node depends on filesystem access to determine the paths to dependencies. With this script, you can specify the path to any named dependency directly.
 
 ```html
-	<script type="importmap">
-		{
-		"imports": {
-			"vue": "https://cdn.jsdelivr.net/npm/vue/dist/vue.min.js",
-			"globalize": "https://cdnjs.cloudflare.com/ajax/libs/globalize/1.6.0/globalize.min.js",
-			"globalize/number": "https://cdnjs.cloudflare.com/ajax/libs/globalize/1.6.0/globalize/number.min.js",
-			"globalize/plural": "https://cdnjs.cloudflare.com/ajax/libs/globalize/1.6.0/globalize/plural.min.js",
-			"globalize/relative-time": "https://cdnjs.cloudflare.com/ajax/libs/globalize/1.6.0/globalize/relative-time.min.js",
-			"cldrjs": "https://cdnjs.cloudflare.com/ajax/libs/cldrjs/0.5.1/cldr.min.js",
-			"cldr": "https://cdnjs.cloudflare.com/ajax/libs/cldrjs/0.5.1/cldr.min.js",
-			"cldr/event": "https://cdnjs.cloudflare.com/ajax/libs/cldrjs/0.5.1/cldr/event.min.js",
-			"cldr/supplemental": "https://cdnjs.cloudflare.com/ajax/libs/cldrjs/0.5.1/cldr/supplemental.min.js",
-			"relative-time": "https://unpkg.com/relative-time@1.0.0/dist/relative-time.js",
-			"zoned-date-time": "https://unpkg.com/zoned-date-time@1.0.0/src/zoned-date-time.js",
-		}
+<script type="importmap">
+	{
+	"imports": {
+		"vue": "https://cdn.jsdelivr.net/npm/vue/dist/vue.min.js",
+		"globalize": "https://cdnjs.cloudflare.com/ajax/libs/globalize/1.6.0/globalize.min.js",
+		"globalize/number": "https://cdnjs.cloudflare.com/ajax/libs/globalize/1.6.0/globalize/number.min.js",
+		"globalize/plural": "https://cdnjs.cloudflare.com/ajax/libs/globalize/1.6.0/globalize/plural.min.js",
+		"globalize/relative-time": "https://cdnjs.cloudflare.com/ajax/libs/globalize/1.6.0/globalize/relative-time.min.js",
+		"cldrjs": "https://cdnjs.cloudflare.com/ajax/libs/cldrjs/0.5.1/cldr.min.js",
+		"cldr": "https://cdnjs.cloudflare.com/ajax/libs/cldrjs/0.5.1/cldr.min.js",
+		"cldr/event": "https://cdnjs.cloudflare.com/ajax/libs/cldrjs/0.5.1/cldr/event.min.js",
+		"cldr/supplemental": "https://cdnjs.cloudflare.com/ajax/libs/cldrjs/0.5.1/cldr/supplemental.min.js",
+		"relative-time": "https://unpkg.com/relative-time@1.0.0/dist/relative-time.js",
+		"zoned-date-time": "https://unpkg.com/zoned-date-time@1.0.0/src/zoned-date-time.js",
 	}
-	</script>
+}
+</script>
 
-	<script type="text/javascript" src="./loader.js"></script>
+<script type="text/javascript" src="./loader.js"></script>
 
-  <!-- Now we can import our library which was compiled w/ dependencies on the node packages named above -->
-  <script type="text/javascript">
-      require("./app.js", App => {
-          // `require()` will intercept calls to dependencies, e.g. `require("vue")` will load `vue.min.js`
-          // from the path declared above.
-          var app = new App();
-      });
-  </script>
+<!-- Now we can import our library which was compiled w/ dependencies on the node packages named above -->
+<script type="text/javascript">
+	require("./app.js", App => {
+		// `require()` will intercept calls to dependencies, e.g. `require("vue")` will load `vue.min.js`
+		// from the path declared above.
+		var app = new App();
+	});
+</script>
 ```
 
 # License and Credits
