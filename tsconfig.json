@@ -1,0 +1,23 @@
+{
+    "compilerOptions": {
+        "noEmitOnError": true,
+        "noImplicitAny": true,
+        "noImplicitReturns": true,
+        "noFallthroughCasesInSwitch": true,
+        "removeComments": false,
+        "sourceMap": true,
+        "incremental": true,
+        "lib": [
+            "es5",
+            "es2015.promise",
+            "dom"
+        ],
+        "module": "amd",
+        "moduleResolution": "node",
+        "outFile": "dist/loader.js",
+        "strict": true,
+        "target": "es3"
+    },
+    "exclude": [
+    ]
+}
