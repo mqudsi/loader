@@ -16,7 +16,8 @@
         "moduleResolution": "node",
         "outFile": "dist/loader.js",
         "strict": true,
-        "target": "es3"
+        "target": "es3",
+        "ignoreDeprecations": "5.0",
     },
     "exclude": [
     ]
