@@ -44,12 +44,12 @@ class LoadedDependency {
     }
 }
 
-const DEBUG = true;
+const DEBUG = window.console && true;
 const debug = {
-    debug: function(... _: any[]) { if (DEBUG) console.debug(arguments) },
-    log: function(... _: any[]) { if (DEBUG) console.log(arguments) },
-    warn: function(... _: any[]) { if (DEBUG) console.warn(arguments) },
-    error: function(... _: any[]) { console.error(arguments) },
+    debug: (DEBUG && console.debug) ? console.debug : function() {},
+    log: DEBUG ? console.log : function() {},
+    warn: (DEBUG && console.warn) ? console.warn : function() {},
+    error: window.console?.error ?? function() {},
 };
 
 type VariableFunction = (...args: any[]) => any;
@@ -207,7 +207,7 @@ async function timed_await<T>(promise: Promise<T>, name: string) {
 }
 
 // tsc complains if we define a top-level `require` directly, so rely on `window` contents being directly accessible instead.
-(<any>window).require = function(_1: any, _2?: any): any {
+(<any>globalThis).require = function(_1: any, _2?: any): any {
     if (arguments.length === 1) {
         if (typeof _1 !== 'string') {
             throw new Error("Unsupported require call!");
@@ -367,7 +367,7 @@ function load(urls: string[] | string): Promise<void | void[]> {
 
 async function loadSingle(url: string) {
     let start;
-    if (DEBUG && window.console !== undefined) {
+    if (DEBUG) {
         // debug.log(`Starting load of ${url}`);
         start = new Date().getTime();
     }
@@ -382,18 +382,12 @@ async function loadSingle(url: string) {
     try {
         await promise;
 
-        /* eslint-disable no-console */
-        if (start && window.console) {
+        if (start) {
             const elapsed = (new Date().getTime()) - start;
             debug.log(`${url} loaded in ${elapsed}ms`);
         }
-        /* eslint-enable no-console */
     } catch (ex) {
-        /* eslint-disable no-console */
-        if (window.console !== undefined) {
-            console.error(`Error loading ${url}: `, ex);
-        }
-        /* eslint-enable no-console */
+        debug.error(`Error loading ${url}: `, ex);
         throw ex;
     }
 }
@@ -411,11 +405,7 @@ function loadCss(url: string) {
             el.attachEvent(`on${name}`, callback);
             return true;
         } else {
-            /* eslint-disable no-console */
-            if (window.console) {
-                console.error(`Error creating ${name} listener!`);
-            }
-            /* eslint-enable no-console */
+            debug.error(`Error creating ${name} listener!`);
             return false;
         }
     }
