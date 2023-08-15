@@ -44,6 +44,7 @@ class LoadedDependency {
     }
 }
 
+/* tslint:disable: no-console no-empty */
 const DEBUG = window.console && true;
 const debug = {
     debug: (DEBUG && console.debug) ? console.debug : function() {},
@@ -51,8 +52,9 @@ const debug = {
     warn: (DEBUG && console.warn) ? console.warn : function() {},
     error: window.console?.error ?? function() {},
 };
+/* tslint:enable: no-console no-empty */
 
-type VariableFunction = (...args: any[]) => any;
+type VariableFunction = (..._: any[]) => any;
 const loadedDependencies = new Map<string, LoadedDependency>();
 (<any>window).loadedDependencies = loadedDependencies;
 // debug.log(loadedDependencies, (<any>window).loadedDependencies);
@@ -60,7 +62,7 @@ async function innerDefine(name: string, dependencies: string[], callback: Varia
     debug.log(`define() for ${name} called`);
     let exportsImported = false;
     const exports = {};
-    const loadedDeps = await Promise.all([...dependencies].map(async (dependency) => {
+    const loadedDeps = await Promise.all(dependencies.map(async (dependency) => {
         if (dependency === "exports") {
             exportsImported = true;
             return exports;
@@ -189,7 +191,7 @@ function makeDefine(autoName: string, resolve: (resolution: any) => any, parent?
         exports: {},
         amd: true,
         called: false,
-        promise: new Promise<void>((resolve, _reject) => { defineResolve = resolve; }),
+        promise: new Promise<void>((resolve, _) => { defineResolve = resolve; }),
     });
 
     return define;
@@ -297,8 +299,7 @@ async function requireAsync(names: string|string[], callback?: VariableFunction,
                 const js = xhr.responseText;
                 var define = makeDefine(name, resolve, parent);
 
-                // This must be defined; the evaluated JS might use it if it
-                // only understands CommonJS
+                // This must be defined; the evaluated JS might use it if it only understands CommonJS
                 const exports = define.exports;
                 var module = { exports };
 
@@ -307,6 +308,7 @@ async function requireAsync(names: string|string[], callback?: VariableFunction,
                 Object.assign(module, {});
                 debug.log(`importing ${name} via eval`);
                 // debug.debug(js);
+                /* tslint:disable:next-line: no-eval */
                 eval(js);
                 debug.debug(`finished eval of ${name}`);
                 if (define.called) {
@@ -461,9 +463,8 @@ function loadjs(url: string) {
                     // there is an error (yes, it's a hack - but then again, I
                     // don't think IE8 is going to be seeing an updates that
                     // will change this behavior any time soon!)
-                    /* eslint-disable */
+                    /* tslint:disable-next-line: no-empty */
                     (function(_) { })(script.children);
-                    /* eslint-enable */
                     if (s.readyState === "loading") {
                         // The transition from loaded => loading can only happen
                         // if an error was encountered.

@@ -1,0 +1,18 @@
+{
+    "defaultSeverity": "error",
+    "extends": "tslint:recommended",
+    "linterOptions": {
+        "exclude": [
+            "src/polyfill/*"
+        ]
+    },
+    "jsRules": {},
+    "rules": {
+        "forin": false,
+        "max-classes-per-file": false,
+        "object-literal-sort-keys": false,
+        "only-arrow-functions": false,
+        "prefer-for-of": false
+    },
+    "rulesDirectory": []
+}
