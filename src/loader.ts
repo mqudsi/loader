@@ -214,7 +214,7 @@ Use \`requireAsync(name, callback?)\` or \`require([name], callback?)\` instead.
 }
 
 const hasExtensionRegex = /\/[^\/]+\./;
-export async function requireAsync(names: string|string[], callback?: VariableFunction, parent?: string): Promise<any> {
+async function requireAsync(names: string|string[], callback?: VariableFunction, parent?: string): Promise<any> {
     // ES3 and ES5 don't support accessing `arguments` in an async function
     console.log("requireAsync called with arguments ", names, callback, parent);
 
