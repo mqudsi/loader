@@ -44,12 +44,20 @@ class LoadedDependency {
     }
 }
 
+const DEBUG = true;
+const debug = {
+    debug: function(... _: any[]) { if (DEBUG) console.debug(arguments) },
+    log: function(... _: any[]) { if (DEBUG) console.log(arguments) },
+    warn: function(... _: any[]) { if (DEBUG) console.warn(arguments) },
+    error: function(... _: any[]) { console.error(arguments) },
+};
+
 type VariableFunction = (...args: any[]) => any;
 const loadedDependencies = new Map<string, LoadedDependency>();
 (<any>window).loadedDependencies = loadedDependencies;
-// console.log(loadedDependencies, (<any>window).loadedDependencies);
+// debug.log(loadedDependencies, (<any>window).loadedDependencies);
 async function innerDefine(name: string, dependencies: string[], callback: VariableFunction, parent?: string): Promise<void> {
-    console.log(`define() for ${name} called`);
+    debug.log(`define() for ${name} called`);
     let exportsImported = false;
     const exports = {};
     const loadedDeps = await Promise.all([...dependencies].map(async (dependency) => {
@@ -70,12 +78,12 @@ async function innerDefine(name: string, dependencies: string[], callback: Varia
     }));
 
     // The module returns itself as the return value of the define callback
-    console.log("loadedDeps for " + name, loadedDeps);
+    debug.log("loadedDeps for " + name, loadedDeps);
     let module = callback(...loadedDeps);
     if (!module && exportsImported) {
         module = exports;
     }
-    console.log(`innerDefine looking up loadedDependency ${name}`);
+    debug.log(`innerDefine looking up loadedDependency ${name}`);
     let dependency = loadedDependencies.get(name);
     if (!dependency) {
         throw new Error("define called but not in response to any require!");
@@ -118,7 +126,7 @@ function makeDefine(autoName: string, resolve: (resolution: any) => any, parent?
         }
 
         if (args.length === 0) {
-            console.error("Unknown define mode", args);
+            debug.error("Unknown define mode", args);
             throw new Error("Unknown define mode!");
         }
 
@@ -126,7 +134,7 @@ function makeDefine(autoName: string, resolve: (resolution: any) => any, parent?
         if (args.length > 1) {
             if (typeof args[0] === 'string') {
                 // Unadvised call to define with a hard-coded name
-                console.log(`Instantiating ${autoName} with an explicit name ${args[0]}`);
+                debug.log(`Instantiating ${autoName} with an explicit name ${args[0]}`);
                 // Make it available under both names
                 loadedDependencies.set(args[0], loadedDependencies.get(autoName)!);
                 name = args.shift();
@@ -135,7 +143,7 @@ function makeDefine(autoName: string, resolve: (resolution: any) => any, parent?
 
         // define with three arguments can only be with a fixed name as the first
         if (args.length > 2) {
-            console.error("Unknown define mode", args);
+            debug.error("Unknown define mode", args);
             throw new Error("Unknown define mode!");
         }
 
@@ -145,13 +153,13 @@ function makeDefine(autoName: string, resolve: (resolution: any) => any, parent?
             if (Array.isArray(args[0])) {
                 deps = args.shift();
             } else {
-                console.error("Unknown define mode", args);
+                debug.error("Unknown define mode", args);
                 throw new Error("Unknown define mode");
             }
         }
 
         if (deps.length > 0) {
-            console.log(`${name} requested ${deps}`);
+            debug.log(`${name} requested ${deps}`);
         }
 
         // Try to resolve paths relative to the current module, e.g. cldr/event depending on ../cldr
@@ -166,7 +174,7 @@ function makeDefine(autoName: string, resolve: (resolution: any) => any, parent?
         if (typeof args[0] === 'function') {
             callback = args[0];
         } else {
-            console.log(`Instantiating ${autoName} via simple initialization`);
+            debug.log(`Instantiating ${autoName} via simple initialization`);
             callback = () => args[0];
         }
 
@@ -191,7 +199,7 @@ async function timed_await<T>(promise: Promise<T>, name: string) {
     let waited = 0;
     let timer = setInterval(() => {
         waited += 5;
-        console.error(`Promise ${name} still not resolved after ${waited} seconds!`);
+        debug.error(`Promise ${name} still not resolved after ${waited} seconds!`);
     }, 5000);
     const result = await promise;
     clearInterval(timer);
@@ -205,12 +213,12 @@ async function timed_await<T>(promise: Promise<T>, name: string) {
             throw new Error("Unsupported require call!");
         }
         // This is the synchronous version of require() that can only load previously loaded and cached modules
-        console.log(`require looking up loadedDependency ${_1}`);
+        debug.log(`require looking up loadedDependency ${_1}`);
         const dependency = loadedDependencies.get(_1);
         if (dependency && dependency.module) {
             return dependency.module;
         } else {
-            console.warn(`${_1} has not been previously loaded asynchronously!
+            debug.warn(`${_1} has not been previously loaded asynchronously!
 Use \`requireAsync(name, callback?)\` or \`require([name], callback?)\` instead.`);
         }
     }
@@ -222,7 +230,7 @@ Use \`requireAsync(name, callback?)\` or \`require([name], callback?)\` instead.
 const hasExtensionRegex = /\/[^\/]+\./;
 async function requireAsync(names: string|string[], callback?: VariableFunction, parent?: string): Promise<any> {
     // ES3 and ES5 don't support accessing `arguments` in an async function
-    console.log("requireAsync called with arguments ", names, callback, parent);
+    debug.log("requireAsync called with arguments ", names, callback, parent);
 
     // If we're being called directly by an external script, the async form takes an array as the first parameter.
     if (Array.isArray(names)) {
@@ -239,7 +247,7 @@ async function requireAsync(names: string|string[], callback?: VariableFunction,
         // This scope is unnecessary but it stops TypeScript from confusing a
         // possibly null/undefined `dependency` with the definitely valid one
         // that we later assign to it.
-        console.log(`requireAsync looking up loadedDependency ${name}`);
+        debug.log(`requireAsync looking up loadedDependency ${name}`);
         let dependency = loadedDependencies.get(name);
         if (dependency) {
             // Another simultaneous asynchronous load has been started
@@ -248,15 +256,15 @@ async function requireAsync(names: string|string[], callback?: VariableFunction,
             if (callback) {
                 throw Error("Unexpected callback");
             }
-            console.log(`Fast-loading ${name} from preloaded cache for ${parent}`, module);
+            debug.log(`Fast-loading ${name} from preloaded cache for ${parent}`, module);
             return module;
         }
     }
 
     if (parent) {
-        console.log(`${parent} is loading ${name}`);
+        debug.log(`${parent} is loading ${name}`);
     } else {
-        console.log(`loading ${name}`);
+        debug.log(`loading ${name}`);
     }
     const dependency = new LoadedDependency(name);
     loadedDependencies.set(name, dependency);
@@ -281,7 +289,7 @@ async function requireAsync(names: string|string[], callback?: VariableFunction,
         path += ".js";
     }
 
-    console.log(`Loading ${path} as ${name}`);
+    debug.log(`Loading ${path} as ${name}`);
     const xhr = new XMLHttpRequest();
     const requirePromise = new Promise((resolve, reject) => {
         xhr.onreadystatechange = async function() {
@@ -297,27 +305,27 @@ async function requireAsync(names: string|string[], callback?: VariableFunction,
                 // Prevent warnings about unused `exports` variable:
                 Object.assign(exports, {});
                 Object.assign(module, {});
-                console.log(`importing ${name} via eval`);
-                // console.debug(js);
+                debug.log(`importing ${name} via eval`);
+                // debug.debug(js);
                 eval(js);
-                console.debug(`finished eval of ${name}`);
+                debug.debug(`finished eval of ${name}`);
                 if (define.called) {
                     await timed_await(define.promise, `define.promise for ${name} after define was definitively called!`);
                     const module = dependency!.module;
                     if (!module) {
                         throw new Error("define.promise resolved but module is still null!");
                     }
-                    console.log(`loaded ${name} as `, module);
+                    debug.log(`loaded ${name} as `, module);
                     return module;
                 } else {
                     // global/non-AMD module
                     // if module.exports is overridden by the eval'd code,
                     // exports may no longer point to the same entity.
-                    console.log(`${name} is not an AMD module`);
+                    debug.log(`${name} is not an AMD module`);
                     resolve(module.exports);
                     dependency.module = module.exports;
                     dependency.resolve(module.exports);
-                    console.log(`loaded ${name} as `, module.exports);
+                    debug.log(`loaded ${name} as `, module.exports);
                     return module.exports;
                 }
             }
@@ -359,8 +367,8 @@ function load(urls: string[] | string): Promise<void | void[]> {
 
 async function loadSingle(url: string) {
     let start;
-    if (window.console !== undefined) {
-        // console.log(`Starting load of ${url}`);
+    if (DEBUG && window.console !== undefined) {
+        // debug.log(`Starting load of ${url}`);
         start = new Date().getTime();
     }
 
@@ -377,7 +385,7 @@ async function loadSingle(url: string) {
         /* eslint-disable no-console */
         if (start && window.console) {
             const elapsed = (new Date().getTime()) - start;
-            console.log(`${url} loaded in ${elapsed}ms`);
+            debug.log(`${url} loaded in ${elapsed}ms`);
         }
         /* eslint-enable no-console */
     } catch (ex) {
