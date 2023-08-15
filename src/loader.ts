@@ -49,6 +49,7 @@ const loadedDependencies = new Map<string, LoadedDependency>();
 (<any>window).loadedDependencies = loadedDependencies;
 // console.log(loadedDependencies, (<any>window).loadedDependencies);
 async function innerDefine(name: string, dependencies: string[], callback: VariableFunction, parent?: string): Promise<void> {
+    console.log(`define() for ${name} called`);
     let exportsImported = false;
     const exports = {};
     const loadedDeps = await Promise.all([...dependencies].map(async (dependency) => {
@@ -120,6 +121,8 @@ function makeDefine(autoName: string, resolve: (resolution: any) => any, parent?
             if (typeof args[0] === 'string') {
                 // Unadvised call to define with a hard-coded name
                 console.log(`Instantiating ${autoName} with an explicit name ${args[0]}`);
+                // Make it available under both names
+                loadedDependencies.set(args[0], loadedDependencies.get(autoName)!);
                 name = args.shift();
             }
         }
