@@ -86,6 +86,12 @@ async function innerDefine(name: string, dependencies: string[], callback: Varia
     dependency.module = module;
     dependency.resolve(module);
 }
+var define = function(name: string, dependencies: string[], callback: VariableFunction) {
+    const dependency = new LoadedDependency(name);
+    loadedDependencies.set(name, dependency);
+    const localDefine = makeDefine(name, dependency.resolve);
+    localDefine(name, dependencies, callback);
+}
 
 // A define function that is called from within a require context, e.g. where the name is determined
 // by the preceding call to require and not by the call to define.
@@ -281,7 +287,7 @@ async function requireAsync(names: string|string[], callback?: VariableFunction,
         xhr.onreadystatechange = async function() {
             if (this.readyState == 4 && this.status == 200) {
                 const js = xhr.responseText;
-                const define = makeDefine(name, resolve, parent);
+                var define = makeDefine(name, resolve, parent);
 
                 // This must be defined; the evaluated JS might use it if it
                 // only understands CommonJS
