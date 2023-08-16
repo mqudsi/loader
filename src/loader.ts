@@ -95,7 +95,7 @@ type VariableFunction = (..._: any[]) => any;
 const loadedDependencies: { [key: string]: LoadedDependency|undefined } = {};
 (<any>window).loadedDependencies = loadedDependencies;
 // debug.log(loadedDependencies, (<any>window).loadedDependencies);
-async function innerDefine(name: string, dependencies: string[], callback: VariableFunction, parent?: string): Promise<void> {
+async function innerDefine(name: string, dependencies: string[], callback: VariableFunction): Promise<void> {
     debug.log(`define() for ${name} called`);
     let exportsImported = false;
     const exports = {};
@@ -161,11 +161,7 @@ function makeDefine(autoName: string, resolve: (resolution: any) => any, parent?
         } else if (typeof(_1) !== "undefined") {
             var args = [_1];
         } else {
-            var args = [];
-        }
-
-        if (args.length === 0) {
-            debug.error("Unknown define mode", args);
+            debug.error("Unknown define mode");
             throw new Error("Unknown define mode!");
         }
 
@@ -222,7 +218,7 @@ function makeDefine(autoName: string, resolve: (resolution: any) => any, parent?
             callback = () => args[0];
         }
 
-        const module = await timed_await(innerDefine(name, deps, callback, parent), `define after eval of ${name} by ${parent}`);
+        const module = await timed_await(innerDefine(name, deps, callback), `define after eval of ${name} by ${parent}`);
         // loadedDependencies must contain the newly loaded module before we resolve the promise
         // That is taken care of by `define(..)`
         resolve(module);
