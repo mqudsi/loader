@@ -44,6 +44,42 @@ class LoadedDependency {
     }
 }
 
+interface StringConstructor {
+    startsWith(needle: string): boolean;
+    endsWith(needle: string): boolean;
+}
+
+interface String {
+    startsWith(needle: string): boolean;
+    endsWith(needle: string): boolean;
+}
+
+String.startsWith ??= function(this: string, needle: string) {
+    return this.substring(0, needle.length) === needle;
+}
+
+String.endsWith ??= function(this: string, needle: string) {
+    return this.substring(this.length - needle.length) === needle;
+}
+
+interface ObjectConstructor {
+    assign<T, U>(target: T, source: U): T & U;
+}
+
+interface Object {
+    assign<T, U>(target: T, source: U): T & U;
+}
+
+Object.assign ??= function<T, U>(target: T, source: U): T & U {
+    for (let i in source) {
+        // Avoid bugs when hasOwnProperty is shadowed
+        if (Object.prototype.hasOwnProperty.call(source, i)) {
+          (<any>target)[i] = source[i];
+        }
+    }
+    return <T&U>target;
+}
+
 /* tslint:disable: no-console no-empty */
 const DEBUG = window.console && true;
 const debug = {
@@ -55,7 +91,8 @@ const debug = {
 /* tslint:enable: no-console no-empty */
 
 type VariableFunction = (..._: any[]) => any;
-const loadedDependencies = new Map<string, LoadedDependency>();
+// Map isn't available under ES5
+const loadedDependencies: { [key: string]: LoadedDependency|undefined } = {};
 (<any>window).loadedDependencies = loadedDependencies;
 // debug.log(loadedDependencies, (<any>window).loadedDependencies);
 async function innerDefine(name: string, dependencies: string[], callback: VariableFunction, parent?: string): Promise<void> {
@@ -81,12 +118,12 @@ async function innerDefine(name: string, dependencies: string[], callback: Varia
 
     // The module returns itself as the return value of the define callback
     debug.log("loadedDeps for " + name, loadedDeps);
-    let module = callback(...loadedDeps);
+    let module = callback.apply(null, loadedDeps);
     if (!module && exportsImported) {
         module = exports;
     }
     debug.log(`innerDefine looking up loadedDependency ${name}`);
-    let dependency = loadedDependencies.get(name);
+    let dependency = loadedDependencies[name];
     if (!dependency) {
         throw new Error("define called but not in response to any require!");
     }
@@ -98,7 +135,7 @@ async function innerDefine(name: string, dependencies: string[], callback: Varia
 }
 var define = function(name: string, dependencies: string[], callback: VariableFunction) {
     const dependency = new LoadedDependency(name);
-    loadedDependencies.set(name, dependency);
+    loadedDependencies[name] = dependency;
     const localDefine = makeDefine(name, dependency.resolve);
     localDefine(name, dependencies, callback);
 }
@@ -138,7 +175,12 @@ function makeDefine(autoName: string, resolve: (resolution: any) => any, parent?
                 // Unadvised call to define with a hard-coded name
                 debug.log(`Instantiating ${autoName} with an explicit name ${args[0]}`);
                 // Make it available under both names
-                loadedDependencies.set(args[0], loadedDependencies.get(autoName)!);
+                let dependency = loadedDependencies[autoName];
+                if (!dependency) {
+                    debug.error(`Unable to find dependency ${args[0]} by alternate name ${autoName}`);
+                    throw new Error(`Unable to find dependency ${args[0]} by alternate name ${autoName}`);
+                }
+                loadedDependencies[args[0]] = dependency;
                 name = args.shift();
             }
         }
@@ -216,7 +258,7 @@ async function timed_await<T>(promise: Promise<T>, name: string) {
         }
         // This is the synchronous version of require() that can only load previously loaded and cached modules
         debug.log(`require looking up loadedDependency ${_1}`);
-        const dependency = loadedDependencies.get(_1);
+        const dependency = loadedDependencies[_1];
         if (dependency && dependency.module) {
             return dependency.module;
         } else {
@@ -250,7 +292,7 @@ async function requireAsync(names: string|string[], callback?: VariableFunction,
         // possibly null/undefined `dependency` with the definitely valid one
         // that we later assign to it.
         debug.log(`requireAsync looking up loadedDependency ${name}`);
-        let dependency = loadedDependencies.get(name);
+        let dependency = loadedDependencies[name];
         if (dependency) {
             // Another simultaneous asynchronous load has been started
             let module = await timed_await(dependency.promise, `simultaneous load of ${name} for ${parent}`);
@@ -269,7 +311,7 @@ async function requireAsync(names: string|string[], callback?: VariableFunction,
         debug.log(`loading ${name}`);
     }
     const dependency = new LoadedDependency(name);
-    loadedDependencies.set(name, dependency);
+    loadedDependencies[name] = dependency;
 
     let path = name;
     let extraPaths = [];
