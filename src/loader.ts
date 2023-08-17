@@ -279,7 +279,7 @@ async function requireAsync(names: string|string[], callback?: VariableFunction,
         const deps = await Promise.all(names.map(async (dep) =>
             await requireAsync(dep, undefined, parent)));
         if (callback) {
-            return callback(...deps);
+            return callback.apply(null, deps);
         }
         return undefined;
     }
