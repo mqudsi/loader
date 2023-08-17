@@ -270,27 +270,23 @@ Use \`requireAsync(name, callback?)\` or \`require([name], callback?)\` instead.
 /// Requires that the file be loaded from a pathed location (so foo.js would be matched as a package name
 /// while ./foo.js would be matched as a local file) and has an extension.
 const hasExtensionRegex = /\/[^\/]+\.[^\/]+$/;
-async function requireAsync(names: string|string[], callback?: VariableFunction, parent?: string): Promise<any> {
+async function requireAsync(name: string|string[], callback?: VariableFunction, parent?: string): Promise<any> {
     // ES3 and ES5 don't support accessing `arguments` in an async function
-    debug.log("requireAsync called with arguments ", names, callback, parent);
+    debug.log("requireAsync called with arguments ", name, callback, parent);
 
     // If we're being called directly by an external script, the async form takes an array as the first parameter.
-    if (Array.isArray(names)) {
-        const deps = await Promise.all(names.map(async (dep) =>
-            await requireAsync(dep, undefined, parent)));
-        if (callback) {
-            return callback.apply(null, deps);
-        }
+    if (Array.isArray(name)) {
+        const deps = await Promise.all(name.map(dep => requireAsync(dep, undefined, parent)));
+        callback?.apply(null, deps);
         return undefined;
     }
 
-    let name = names;
     {
         // This scope is unnecessary but it stops TypeScript from confusing a
         // possibly null/undefined `dependency` with the definitely valid one
         // that we later assign to it.
         debug.log(`requireAsync looking up loadedDependency ${name}`);
-        let dependency = loadedDependencies[name];
+        const dependency = loadedDependencies[name];
         if (dependency) {
             // Another simultaneous asynchronous load has been started
             let module = await timed_await(dependency.promise, `simultaneous load of ${name} for ${parent}`);
@@ -419,15 +415,12 @@ async function loadSingle(url: string) {
         start = new Date().getTime();
     }
 
-    let promise;
-    if (/\.css$/i.test(url)) {
-        promise = loadCss(url);
-    } else {
-        promise = loadjs(url);
-    }
-
     try {
-        await promise;
+        if (/\.css$/i.test(url)) {
+            await loadCss(url);
+        } else {
+            await loadjs(url);
+        }
 
         if (start) {
             const elapsed = (new Date().getTime()) - start;
@@ -447,13 +440,10 @@ function loadCss(url: string) {
     function attach(el: LegacyHTMLElement, name: string, callback: EventListenerOrEventListenerObject) {
         if (el.addEventListener !== undefined) {
             el.addEventListener(name, callback);
-            return true;
         } else if (el.attachEvent !== undefined) {
             el.attachEvent(`on${name}`, callback);
-            return true;
         } else {
-            debug.error(`Error creating ${name} listener!`);
-            return false;
+            throw new Error(`Error creating ${name} listener!`);
         }
     }
 
@@ -506,7 +496,7 @@ function loadjs(url: string) {
                     // Attempting to enumerate the children of the script tag
                     // will result in s.readyState changing to "loading" if
                     // there is an error (yes, it's a hack - but then again, I
-                    // don't think IE8 is going to be seeing an updates that
+                    // don't think IE8 is going to be seeing any updates that
                     // will change this behavior any time soon!)
                     /* tslint:disable-next-line: no-empty */
                     (function(_) { })(script.children);
