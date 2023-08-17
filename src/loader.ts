@@ -267,7 +267,9 @@ Use \`requireAsync(name, callback?)\` or \`require([name], callback?)\` instead.
     return requireAsync(_1, _2);
 }
 
-const hasExtensionRegex = /\/[^\/]+\./;
+/// Requires that the file be loaded from a pathed location (so foo.js would be matched as a package name
+/// while ./foo.js would be matched as a local file) and has an extension.
+const hasExtensionRegex = /\/[^\/]+\.[^\/]+$/;
 async function requireAsync(names: string|string[], callback?: VariableFunction, parent?: string): Promise<any> {
     // ES3 and ES5 don't support accessing `arguments` in an async function
     debug.log("requireAsync called with arguments ", names, callback, parent);
