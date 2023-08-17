@@ -352,22 +352,27 @@ async function requireAsync(names: string|string[], callback?: VariableFunction,
                 eval(js);
                 debug.debug(`finished eval of ${name}`);
                 if (define.called) {
+                    // Loaded an AMD/UMD module
                     await timed_await(define.promise, `define.promise for ${name} after define was definitively called!`);
-                    const module = dependency!.module;
-                    if (!module) {
+                    const moduleResult = dependency.module;
+                    if (!moduleResult) {
                         throw new Error("define.promise resolved but module is still null!");
                     }
-                    debug.log(`loaded ${name} as `, module);
-                    return module;
+                    debug.log(`loaded AMD module ${name}`, moduleResult);
+                    return moduleResult;
                 } else {
-                    // global/non-AMD module
-                    // if module.exports is overridden by the eval'd code,
-                    // exports may no longer point to the same entity.
-                    debug.log(`${name} is not an AMD module`);
+                    // Don't use the `exports` name/reference because if module.exports is overridden
+                    // by the eval'd code, exports may no longer point to the same entity.
+
+                    // CommonJS if module.exports is non-empty
+                    if ((function(obj) { for (const _ in obj) { return true; } return false; })(module.exports)) {
+                        debug.log(`loaded CommonJS module ${name}`, module.exports);
+                    } else {
+                        debug.log(`loaded global/legacy script ${name}`);
+                    }
                     resolve(module.exports);
                     dependency.module = module.exports;
                     dependency.resolve(module.exports);
-                    debug.log(`loaded ${name} as `, module.exports);
                     return module.exports;
                 }
             }
