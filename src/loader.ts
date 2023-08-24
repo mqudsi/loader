@@ -71,30 +71,30 @@ interface Object {
     assign<T, U>(target: T, source: U): T & U;
 }
 
-Object.assign ??= function<T, U>(target: T, source: U): T & U {
+Object.assign ??= function <T, U>(target: T, source: U): T & U {
     for (let i in source) {
         // Avoid bugs when hasOwnProperty is shadowed
         if (Object.prototype.hasOwnProperty.call(source, i)) {
-          (<any>target)[i] = source[i];
+            (<any> target)[i] = source[i];
         }
     }
-    return <T&U>target;
+    return <T & U> target;
 }
 
 /* tslint:disable: no-console no-empty */
 const DEBUG = window.console && true;
 const debug = {
-    debug: (DEBUG && console.debug) ? console.debug : function() {},
-    log: DEBUG ? console.log : function() {},
-    warn: (DEBUG && console.warn) ? console.warn : function() {},
-    error: window.console?.error ?? function() {},
+    debug: (DEBUG && console.debug) ? console.debug : function() { },
+    log: DEBUG ? console.log : function() { },
+    warn: (DEBUG && console.warn) ? console.warn : function() { },
+    error: window.console?.error ?? function() { },
 };
 /* tslint:enable: no-console no-empty */
 
 type VariableFunction = (..._: any[]) => any;
 // Map isn't available under ES5
-const loadedDependencies: { [key: string]: LoadedDependency|undefined } = {};
-(<any>window).loadedDependencies = loadedDependencies;
+const loadedDependencies: { [key: string]: LoadedDependency | undefined } = {};
+(<any> window).loadedDependencies = loadedDependencies;
 // debug.log(loadedDependencies, (<any>window).loadedDependencies);
 async function innerDefine(name: string, dependencies: string[], callback: VariableFunction): Promise<void> {
     debug.log(`define() for ${name} called`);
@@ -105,7 +105,7 @@ async function innerDefine(name: string, dependencies: string[], callback: Varia
             exportsImported = true;
             return exports;
         } else if (dependency === "require") {
-            return (<any>window).require;
+            return (<any> window).require;
         } else {
             // Handle relative paths, e.g. ./foo/bar requesting ./baz should map to ./foo/baz
             if (dependency.startsWith("./")) {
@@ -155,11 +155,11 @@ function makeDefine(autoName: string, resolve: (resolution: any) => any, parent?
         define.called = true;
         // ES3 and ES5 don't support accessing `arguments` in an async function
         // let args = Array.from(arguments);
-        if (typeof(_3) !== "undefined") {
+        if (typeof (_3) !== "undefined") {
             var args = [_1, _2, _3];
-        } else if (typeof(_2) !== "undefined") {
+        } else if (typeof (_2) !== "undefined") {
             var args = [_1, _2];
-        } else if (typeof(_1) !== "undefined") {
+        } else if (typeof (_1) !== "undefined") {
             var args = [_1];
         } else {
             debug.error("Unknown define mode");
@@ -248,7 +248,7 @@ async function timed_await<T>(promise: Promise<T>, name: string) {
 }
 
 // tsc complains if we define a top-level `require` directly, so rely on `window` contents being directly accessible instead.
-(<any>globalThis).require = function(_1: any, _2?: any): any {
+(<any> globalThis).require = function(_1: any, _2?: any): any {
     if (arguments.length === 1) {
         if (typeof _1 !== 'string') {
             throw new Error("Unsupported require call!");
@@ -269,15 +269,15 @@ Use \`requireAsync(name, callback?)\` or \`require([name], callback?)\` instead.
 };
 
 // For compatibility with require.js and alameda.js, allow require.config({paths: []}) to be used instead of an importmap.
-(<any>globalThis).require.config = function(config: { paths: {[name: string]: string}}) {
+(<any> globalThis).require.config = function(config: { paths: { [name: string]: string } }) {
     for (let name in config.paths) {
-        importMap[name] = [ config.paths[name] ];
+        importMap[name] = [config.paths[name]];
     }
 };
 
 /// Check if input has an extension. Extension may not be the last thing, as query string parameters are considered.
 const hasExtensionRegex = /\.[^\/]+$/;
-async function requireAsync(name: string|string[], callback?: VariableFunction, parent?: string): Promise<any> {
+async function requireAsync(name: string | string[], callback?: VariableFunction, parent?: string): Promise<any> {
     // ES3 and ES5 don't support accessing `arguments` in an async function
     debug.log("requireAsync called with arguments ", name, callback, parent);
 
