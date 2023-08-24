@@ -18,7 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-const head = document.getElementsByTagName("head")[0];
+if (!document.head) {
+    (<any> document).head = document.getElementsByTagName("head")[0];
+}
 
 // Can be extended or overwritten with require.config({ paths: {..} })
 const importMap: { [name: string]: [string] } = (function() {
@@ -502,7 +504,7 @@ function loadCss(url: string) {
         });
         attach(link, "error", reject);
 
-        head.appendChild(link);
+        document.head.appendChild(link);
     });
 }
 
@@ -525,7 +527,7 @@ function loadjs(url: string) {
                 if (!s.readyState
                     || s.readyState === "complete"
                     || s.readyState === "completed") {
-                    head.appendChild(script);
+                    document.head.appendChild(script);
                     resolve();
                 } else if (s.readyState === "loaded") {
                     // Attempting to enumerate the children of the script tag
@@ -547,7 +549,7 @@ function loadjs(url: string) {
         } else {
             script.onload = () => resolve();
             script.onerror = reject;
-            head.appendChild(script);
+            document.head.appendChild(script);
         }
 
         // Only assign this once the handlers are in place
