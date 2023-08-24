@@ -19,16 +19,44 @@
 // SOFTWARE.
 
 const head = document.getElementsByTagName("head")[0];
+
 // Can be extended or overwritten with require.config({ paths: {..} })
-const importMap: {[name: string]: [string]} = (function() {
-    const mapEl = document.querySelector("script[type=importmap]");
-    const importMap = mapEl ? JSON.parse(mapEl.innerHTML).imports : {};
-    for (const name in importMap) {
-        const deps = importMap[name];
-        if (!Array.isArray(deps)) {
-            importMap[name] = [deps];
+const importMap: { [name: string]: [string] } = (function() {
+    const mapEl = (function() {
+        if (document.querySelector) {
+            return <HTMLScriptElement | null> document.querySelector("script[type=importmap]");
+        } else {
+            let scriptTags = document.getElementsByTagName("script");
+            for (let i = 0; i < scriptTags.length; ++i) {
+                if (scriptTags[i].type === "importmap") {
+                    return scriptTags[i];
+                }
+            }
+            return null;
+        }
+    })();
+
+    let importMap: { [name: string]: [string] } = {};
+    if (mapEl) {
+        try {
+            if (window.JSON && JSON.parse) {
+                importMap = JSON.parse(mapEl.text).imports ?? {};
+            } else {
+                importMap = eval(`(${mapEl.text}).imports`) ?? {};
+            }
+        } catch (ex) {
+            console.error("Error parsing import map:", ex);
+        }
+
+        // Convert non-array dependencies to arrays
+        for (let name in importMap) {
+            const deps = importMap![name];
+            if (!Array.isArray(deps)) {
+                importMap![name] = [deps];
+            }
         }
     }
+
     return importMap;
 })();
 
