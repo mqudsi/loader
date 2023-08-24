@@ -19,7 +19,8 @@
 // SOFTWARE.
 
 const head = document.getElementsByTagName("head")[0];
-const importMap = (function() {
+// Can be extended or overwritten with require.config({ paths: {..} })
+const importMap: {[name: string]: [string]} = (function() {
     const mapEl = document.querySelector("script[type=importmap]");
     const importMap = mapEl ? JSON.parse(mapEl.innerHTML).imports : {};
     for (const name in importMap) {
@@ -265,11 +266,15 @@ Use \`requireAsync(name, callback?)\` or \`require([name], callback?)\` instead.
 
     // Default asynchronous method
     return requireAsync(_1, _2);
-}
+};
 
-/// Requires that the file be loaded from a pathed location (so foo.js would be matched as a package name
-/// while ./foo.js would be matched as a local file) and has an extension.
-const hasExtensionRegex = /\/[^\/]+\.[^\/]+$/;
+// For compatibility with require.js and alameda.js, allow require.config({paths: []}) to be used instead of an importmap.
+(<any>globalThis).require.config = function(config: { paths: {[name: string]: string}}) {
+    for (let name in config.paths) {
+        importMap[name] = [ config.paths[name] ];
+    }
+};
+
 async function requireAsync(name: string|string[], callback?: VariableFunction, parent?: string): Promise<any> {
     // ES3 and ES5 don't support accessing `arguments` in an async function
     debug.log("requireAsync called with arguments ", name, callback, parent);
