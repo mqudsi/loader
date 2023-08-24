@@ -275,6 +275,8 @@ Use \`requireAsync(name, callback?)\` or \`require([name], callback?)\` instead.
     }
 };
 
+/// Check if input has an extension. Extension may not be the last thing, as query string parameters are considered.
+const hasExtensionRegex = /\.[^\/]+$/;
 async function requireAsync(name: string|string[], callback?: VariableFunction, parent?: string): Promise<any> {
     // ES3 and ES5 don't support accessing `arguments` in an async function
     debug.log("requireAsync called with arguments ", name, callback, parent);
