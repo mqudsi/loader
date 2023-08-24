@@ -66,8 +66,7 @@ class LoadedDependency {
     name: string;
     module?: any;
     promise: Promise<any>;
-    // @ts-ignore
-    resolve: (_: any) => void;
+    resolve!: (_: any) => void;
 
     constructor(name: string) {
         this.name = name;
