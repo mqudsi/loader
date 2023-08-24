@@ -74,33 +74,24 @@ class LoadedDependency {
     }
 }
 
-interface StringConstructor {
-    startsWith(needle: string): boolean;
-    endsWith(needle: string): boolean;
-}
-
 interface String {
     startsWith(needle: string): boolean;
     endsWith(needle: string): boolean;
 }
 
-String.startsWith ??= function(this: string, needle: string) {
+String.prototype.startsWith ??= function(this: string, needle: string) {
     return this.substring(0, needle.length) === needle;
 }
 
-String.endsWith ??= function(this: string, needle: string) {
+String.prototype.endsWith ??= function(this: string, needle: string) {
     return this.substring(this.length - needle.length) === needle;
-}
-
-interface ObjectConstructor {
-    assign<T, U>(target: T, source: U): T & U;
 }
 
 interface Object {
     assign<T, U>(target: T, source: U): T & U;
 }
 
-Object.assign ??= function <T, U>(target: T, source: U): T & U {
+Object.prototype.assign ??= function <T, U>(target: T, source: U): T & U {
     for (let i in source) {
         // Avoid bugs when hasOwnProperty is shadowed
         if (Object.prototype.hasOwnProperty.call(source, i)) {
