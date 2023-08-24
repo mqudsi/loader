@@ -315,8 +315,8 @@ async function requireAsync(name: string|string[], callback?: VariableFunction, 
     loadedDependencies[name] = dependency;
 
     let path = name;
-    let extraPaths = [];
-    if (!name.startsWith("http:") && !name.startsWith("./") && !name.startsWith('/')) {
+    let extraPaths: string[] = [];
+    if (!name.startsWith("http:") && !name.startsWith(".") && !name.startsWith('/')) {
         const urls = importMap[name];
         if (!urls) {
             throw new Error(`${name} missing from import map!`);
