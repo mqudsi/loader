@@ -261,19 +261,15 @@ async function timedAwait<T>(promise: Promise<T>, name: string) {
 }
 
 // tsc complains on top-level `require` directly; rely on `window` contents being directly accessible instead.
-(<any> globalThis).require = function(_1: any, _2?: any): any {
-    if (arguments.length === 1) {
-        if (typeof _1 !== "string") {
-            throw new Error("Unsupported require call!");
-        }
+(<any> window).require = function(_1: any, _2?: any): any {
+    if (arguments.length === 1 && typeof _1 === "string") {
         // This is the synchronous version of require() that can only load previously loaded and cached modules
         debug.log(`require looking up loadedDependency ${_1}`);
         const dependency = loadedDependencies[_1];
         if (dependency && dependency.module) {
             return dependency.module;
         } else {
-            debug.warn(`${_1} has not been previously loaded asynchronously!
-Use \`requireAsync(name, callback?)\` or \`require([name], callback?)\` instead.`);
+            throw new Error(`${_1} has not been previously loaded asynchronously! Use \`require([name], callback)\` instead.`);
         }
     }
 
@@ -308,14 +304,8 @@ async function requireAsync(name: string | string[], callback?: RequireCallback,
         debug.log(`requireAsync looking up loadedDependency ${name}`);
         const dependency = loadedDependencies[name];
         if (dependency) {
-            // Another simultaneous asynchronous load has been started
-            const module = await timedAwait(dependency.promise, `simultaneous load of ${name} for ${parent}`);
-            // Internally, require is never called with a callback
-            if (callback) {
-                throw Error("Unexpected callback");
-            }
-            debug.log(`Fast-loading ${name} from preloaded cache for ${parent}`, module);
-            return module;
+            // Either already loaded or simultaneously being loaded.
+            return dependency.module ?? await dependency.promise;
         }
     }
 
@@ -392,7 +382,7 @@ async function requireAsync(name: string | string[], callback?: RequireCallback,
     await timedAwait(Promise.all([requirePromise, ...(extraPaths.map(load))]), `overall load of dependency ${name} for ${parent}`);
     const module = await timedAwait(dependency.promise,
         `loadedDependency promise for ${name} from ${parent} after requirePromise resolved!`);
-    callback?.(module);
+    // Don't bother calling callback, we never set it internally for non-array require calls.
     return module;
 }
 
