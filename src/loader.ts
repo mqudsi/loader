@@ -367,9 +367,9 @@ async function requireAsync(name: string | string[], callback?: RequireCallback,
                     } else {
                         debug.log(`loaded global/legacy script ${name}`);
                     }
-                    resolve(module.exports);
                     dependency.module = module.exports;
                     dependency.resolve(module.exports);
+                    resolve(module.exports);
                 }
             }
         };
