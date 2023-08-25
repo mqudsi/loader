@@ -24,11 +24,11 @@ if (!document.head) {
 
 // Can be extended or overwritten with require.config({ paths: {..} })
 const importMap: { [name: string]: [string] } = (function() {
-    const mapEl = (function() {
+    const mapEl: HTMLScriptElement | null = (function() {
         if (document.querySelector) {
-            return <HTMLScriptElement | null> document.querySelector("script[type=importmap]");
+            return document.querySelector("script[type=importmap]");
         } else {
-            let scriptTags = document.getElementsByTagName("script");
+            const scriptTags = document.getElementsByTagName("script");
             for (let i = 0; i < scriptTags.length; ++i) {
                 if (scriptTags[i].type === "importmap") {
                     return scriptTags[i];
@@ -44,17 +44,19 @@ const importMap: { [name: string]: [string] } = (function() {
             if (window.JSON && JSON.parse) {
                 importMap = JSON.parse(mapEl.text).imports ?? {};
             } else {
+                // eslint-disable-next-line no-eval
                 importMap = eval(`(${mapEl.text}).imports`) ?? {};
             }
         } catch (ex) {
-            console.error("Error parsing import map:", ex);
+            // eslint-disable-next-line no-console
+            window.console?.error?.("Error parsing import map:", ex);
         }
 
         // Convert non-array dependencies to arrays
-        for (let name in importMap) {
-            const deps = importMap![name];
+        for (const name in importMap) {
+            const deps = importMap[name];
             if (!Array.isArray(deps)) {
-                importMap![name] = [deps];
+                importMap[name] = [deps];
             }
         }
     }
@@ -63,45 +65,49 @@ const importMap: { [name: string]: [string] } = (function() {
 })();
 
 class LoadedDependency {
-    name: string;
-    module?: any;
-    promise: Promise<any>;
-    resolve!: (_: any) => void;
+    public name: string;
+    public module?: unknown;
+    public promise: Promise<unknown>;
+    public resolve!: (_: unknown) => void;
 
-    constructor(name: string) {
+    public constructor(name: string) {
         this.name = name;
         this.promise = new Promise((resolve, _reject) => this.resolve = resolve);
     }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface String {
     startsWith(needle: string): boolean;
     endsWith(needle: string): boolean;
 }
 
 String.prototype.startsWith ??= function(this: string, needle: string) {
+    // eslint-disable-next-line @typescript-eslint/prefer-string-starts-ends-with
     return this.substring(0, needle.length) === needle;
-}
+};
 
 String.prototype.endsWith ??= function(this: string, needle: string) {
+    // eslint-disable-next-line @typescript-eslint/prefer-string-starts-ends-with
     return this.substring(this.length - needle.length) === needle;
-}
+};
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface Object {
     assign<T, U>(target: T, source: U): T & U;
 }
 
 Object.prototype.assign ??= function <T, U>(target: T, source: U): T & U {
-    for (let i in source) {
+    for (const i in source) {
         // Avoid bugs when hasOwnProperty is shadowed
         if (Object.prototype.hasOwnProperty.call(source, i)) {
             (<any> target)[i] = source[i];
         }
     }
     return <T & U> target;
-}
+};
 
-/* tslint:disable: no-console no-empty */
+/* eslint-disable no-console */
 const DEBUG = window.console && true;
 const debug = {
     debug: (DEBUG && console.debug) ? console.debug : function() { },
@@ -109,18 +115,19 @@ const debug = {
     warn: (DEBUG && console.warn) ? console.warn : function() { },
     error: window.console?.error ?? function() { },
 };
-/* tslint:enable: no-console no-empty */
+/* eslint-enable no-console */
 
-type VariableFunction = (..._: any[]) => any;
+type RequireCallback = (..._: any[]) => unknown;
 // Map isn't available under ES5
-const loadedDependencies: { [key: string]: LoadedDependency | undefined } = {};
+// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+const loadedDependencies: { [key: string]: (LoadedDependency | undefined) } = {};
 (<any> window).loadedDependencies = loadedDependencies;
 // debug.log(loadedDependencies, (<any>window).loadedDependencies);
-async function innerDefine(name: string, dependencies: string[], callback: VariableFunction): Promise<void> {
+async function innerDefine(name: string, dependencies: string[], callback: RequireCallback): Promise<void> {
     debug.log(`define() for ${name} called`);
     let exportsImported = false;
     const exports = {};
-    const loadedDeps = await Promise.all(dependencies.map(async (dependency) => {
+    const loadedDeps = await Promise.all(dependencies.map(async dependency => {
         if (dependency === "exports") {
             exportsImported = true;
             return exports;
@@ -132,7 +139,7 @@ async function innerDefine(name: string, dependencies: string[], callback: Varia
                 const thisPath = name.match(/\//) ? name : importMap[name][0];
                 dependency = thisPath.replace(/\/[^/]+$/, dependency.replace("./", "/"));
             }
-            return await timed_await(requireAsync(dependency, undefined, name),
+            return await timedAwait(requireAsync(dependency, undefined, name),
                 `require of dependency ${dependency} for define of ${name}`);
         }
     }));
@@ -144,9 +151,9 @@ async function innerDefine(name: string, dependencies: string[], callback: Varia
         module = exports;
     }
     debug.log(`innerDefine looking up loadedDependency ${name}`);
-    let dependency = loadedDependencies[name];
+    const dependency = loadedDependencies[name];
     if (!dependency) {
-        throw new Error("define called but not in response to any require!");
+        throw new Error("Internal error. Dependency should already be in the dictionary.");
     }
     if (dependency.module) {
         throw new Error("dependency loaded more than once!");
@@ -154,111 +161,104 @@ async function innerDefine(name: string, dependencies: string[], callback: Varia
     dependency.module = module;
     dependency.resolve(module);
 }
-var define = function(name: string, dependencies: string[], callback: VariableFunction) {
+(<any> window).define = function(name: string, dependencies: string[], callback: RequireCallback) {
     const dependency = new LoadedDependency(name);
     loadedDependencies[name] = dependency;
     const localDefine = makeDefine(name, dependency.resolve);
     localDefine(name, dependencies, callback);
-}
+};
 
 // A define function that is called from within a require context, e.g. where the name is determined
 // by the preceding call to require and not by the call to define.
 type RequireDefine = ((_1: any, _2: any, _3: any) => Promise<void>) & {
-    exports: {};
+    exports: object;
     amd: boolean;
     called: boolean;
     promise: Promise<void>;
 };
 
-function makeDefine(autoName: string, resolve: (resolution: any) => any, parent?: string): RequireDefine {
-    const localDefine = async function(_1: any, _2: any, _3: any): Promise<void> {
+function makeDefine(autoName: string, resolveModule: (resolution: any) => any, parent?: string): RequireDefine {
+    const localDefine = function(_1: any, _2: any, _3: any): Promise<void> {
         define.called = true;
-        // ES3 and ES5 don't support accessing `arguments` in an async function
-        // let args = Array.from(arguments);
-        if (typeof (_3) !== "undefined") {
-            var args = [_1, _2, _3];
-        } else if (typeof (_2) !== "undefined") {
-            var args = [_1, _2];
-        } else if (typeof (_1) !== "undefined") {
-            var args = [_1];
+
+        let name = autoName;
+        const args = Array.prototype.slice.call(arguments);
+        if (args.length > 1) {
+            if (typeof args[0] === "string") {
+                name = <string> args.shift();
+                // Check for dependency require'd by path, defining itself by name.
+                if (name !== autoName) {
+                    debug.log(`Instantiating ${autoName} with an explicit name ${name}`);
+                    // Make it available under both names
+                    const dependency = loadedDependencies[autoName];
+                    if (!dependency) {
+                        throw new Error(`Unable to find dependency ${name} by alternate name ${autoName}`);
+                    }
+                    loadedDependencies[name] = dependency;
+                }
+            }
         } else {
-            debug.error("Unknown define mode");
             throw new Error("Unknown define mode!");
         }
 
-        let name = autoName;
-        if (args.length > 1) {
-            if (typeof args[0] === 'string') {
-                // Unadvised call to define with a hard-coded name
-                debug.log(`Instantiating ${autoName} with an explicit name ${args[0]}`);
-                // Make it available under both names
-                let dependency = loadedDependencies[autoName];
-                if (!dependency) {
-                    debug.error(`Unable to find dependency ${args[0]} by alternate name ${autoName}`);
-                    throw new Error(`Unable to find dependency ${args[0]} by alternate name ${autoName}`);
-                }
-                loadedDependencies[args[0]] = dependency;
-                name = args.shift();
-            }
-        }
-
-        // define with three arguments can only be with a fixed name as the first
+        // define with three arguments can only be with a fixed name as the first (handled above)
         if (args.length > 2) {
             debug.error("Unknown define mode", args);
             throw new Error("Unknown define mode!");
         }
 
-        let deps = [];
+        let deps: string[] = [];
         if (args.length === 2) {
             // The only way we can have two parameters left is if the first is the dependencies
             if (Array.isArray(args[0])) {
-                deps = args.shift();
+                deps = <string[]> args.shift();
             } else {
-                debug.error("Unknown define mode", args);
                 throw new Error("Unknown define mode");
             }
         }
 
         if (deps.length > 0) {
-            debug.log(`${name} requested ${deps}`);
+            debug.log(`${name} requested`, deps);
         }
 
         // Try to resolve paths relative to the current module, e.g. cldr/event depending on ../cldr
         for (let i = 0; i < deps.length; ++i) {
             while (deps[i].startsWith("../")) {
-                deps[i] = deps[i].substr(3);
+                deps[i] = deps[i].substring(3);
             }
         }
 
-        // Only one parameter left, the module itself
-        let callback: VariableFunction;
-        if (typeof args[0] === 'function') {
-            callback = args[0];
+        // Only one parameter left: the module itself
+        let callback: RequireCallback;
+        if (typeof args[0] === "function") {
+            callback = <RequireCallback> args[0];
         } else {
             debug.log(`Instantiating ${autoName} via simple initialization`);
             callback = () => args[0];
         }
 
-        const module = await timed_await(innerDefine(name, deps, callback), `define after eval of ${name} by ${parent}`);
-        // loadedDependencies must contain the newly loaded module before we resolve the promise
-        // That is taken care of by `define(..)`
-        resolve(module);
-        defineResolve(module);
+        return timedAwait(innerDefine(name, deps, callback), `define after eval of ${name} by ${parent}`)
+            .then(module => {
+                // loadedDependencies must contain the newly loaded module before we resolve the promise;
+                // that is taken care of by the call to `define(..)`.
+                resolveModule(module);
+                resolveDefine(module);
+            });
     };
-    let defineResolve: (_: any) => void;
-    const define = Object.assign(localDefine, {
+
+    let resolveDefine: (_: any) => void;
+    const define: RequireDefine = Object.assign(localDefine, {
         exports: {},
         amd: true,
         called: false,
-        promise: new Promise<void>((resolve, _) => { defineResolve = resolve; }),
+        promise: new Promise<void>((resolve, _) => { resolveDefine = resolve; }),
     });
-
     return define;
 };
 
-async function timed_await<T>(promise: Promise<T>, name: string) {
+async function timedAwait<T>(promise: Promise<T>, name: string) {
     let waited = 0;
-    let timer = setInterval(() => {
+    const timer = setInterval(() => {
         waited += 5;
         debug.error(`Promise ${name} still not resolved after ${waited} seconds!`);
     }, 5000);
@@ -267,10 +267,10 @@ async function timed_await<T>(promise: Promise<T>, name: string) {
     return result;
 }
 
-// tsc complains if we define a top-level `require` directly, so rely on `window` contents being directly accessible instead.
+// tsc complains on top-level `require` directly; rely on `window` contents being directly accessible instead.
 (<any> globalThis).require = function(_1: any, _2?: any): any {
     if (arguments.length === 1) {
-        if (typeof _1 !== 'string') {
+        if (typeof _1 !== "string") {
             throw new Error("Unsupported require call!");
         }
         // This is the synchronous version of require() that can only load previously loaded and cached modules
@@ -290,14 +290,14 @@ Use \`requireAsync(name, callback?)\` or \`require([name], callback?)\` instead.
 
 // For compatibility with require.js and alameda.js, allow require.config({paths: []}) to be used instead of an importmap.
 (<any> globalThis).require.config = function(config: { paths: { [name: string]: string } }) {
-    for (let name in config.paths) {
+    for (const name in config.paths) {
         importMap[name] = [config.paths[name]];
     }
 };
 
-/// Check if input has an extension. Extension may not be the last thing, as query string parameters are considered.
+// Check if input has an extension. Extension may not be the last thing, as query string parameters are considered.
 const hasExtensionRegex = /\.[^\/]+$/;
-async function requireAsync(name: string | string[], callback?: VariableFunction, parent?: string): Promise<any> {
+async function requireAsync(name: string | string[], callback?: RequireCallback, parent?: string): Promise<any> {
     // ES3 and ES5 don't support accessing `arguments` in an async function
     debug.log("requireAsync called with arguments ", name, callback, parent);
 
@@ -316,7 +316,7 @@ async function requireAsync(name: string | string[], callback?: VariableFunction
         const dependency = loadedDependencies[name];
         if (dependency) {
             // Another simultaneous asynchronous load has been started
-            let module = await timed_await(dependency.promise, `simultaneous load of ${name} for ${parent}`);
+            const module = await timedAwait(dependency.promise, `simultaneous load of ${name} for ${parent}`);
             // Internally, require is never called with a callback
             if (callback) {
                 throw Error("Unexpected callback");
@@ -336,9 +336,9 @@ async function requireAsync(name: string | string[], callback?: VariableFunction
 
     let path = name;
     let extraPaths: string[] = [];
-    if (!name.startsWith("http:") && !name.startsWith(".") && !name.startsWith('/')) {
+    if (!name.startsWith("http:") && !name.startsWith(".") && !name.startsWith("/")) {
         const urls = importMap[name];
-        if (!urls) {
+        if (!urls || !urls[0]) {
             throw new Error(`${name} missing from import map!`);
         }
         path = urls[0];
@@ -358,31 +358,27 @@ async function requireAsync(name: string | string[], callback?: VariableFunction
     const xhr = new XMLHttpRequest();
     const requirePromise = new Promise((resolve, reject) => {
         xhr.onreadystatechange = async function() {
-            if (this.readyState == 4 && this.status == 200) {
+            if (this.readyState === 4 && this.status === 200) {
                 const js = xhr.responseText;
-                var define = makeDefine(name, resolve, parent);
+                const define = makeDefine(name, resolve, parent);
 
                 // This must be defined; the evaluated JS might use it if it only understands CommonJS
                 const exports = define.exports;
-                var module = { exports };
+                const module = { exports };
 
-                // Prevent warnings about unused `exports` variable:
-                Object.assign(exports, {});
-                Object.assign(module, {});
                 debug.log(`importing ${name} via eval`);
                 // debug.debug(js);
-                /* tslint:disable:next-line: no-eval */
+                // eslint-disable-next-line no-eval
                 eval(js);
                 debug.debug(`finished eval of ${name}`);
                 if (define.called) {
                     // Loaded an AMD/UMD module
-                    await timed_await(define.promise, `define.promise for ${name} after define was definitively called!`);
-                    const moduleResult = dependency.module;
+                    await timedAwait(define.promise, `define.promise for ${name} after define was definitively called!`);
+                    const moduleResult: unknown = dependency.module;
                     if (!moduleResult) {
-                        throw new Error("define.promise resolved but module is still null!");
+                        throw new Error("define.promise resolved but module is still undefined!");
                     }
                     debug.log(`loaded AMD module ${name}`, moduleResult);
-                    return moduleResult;
                 } else {
                     // Don't use the `exports` name/reference because if module.exports is overridden
                     // by the eval'd code, exports may no longer point to the same entity.
@@ -396,32 +392,24 @@ async function requireAsync(name: string | string[], callback?: VariableFunction
                     resolve(module.exports);
                     dependency.module = module.exports;
                     dependency.resolve(module.exports);
-                    return module.exports;
                 }
             }
-        }
+        };
         xhr.onerror = reject;
         xhr.open("GET", path);
         xhr.send();
     });
 
-    await timed_await(Promise.all([requirePromise, ...(extraPaths.map(load))]), `overall load of dependency ${name} for ${parent}`);
     // We wait for the resolution which guarantees loadedDependencies contains this self-same module
-    {
-        // This is in a new scope to prevent pollution of the eval scope above
-        const module = await timed_await(dependency.promise,
-            `loadedDependency promise for ${name} from ${parent} after requirePromise resolved!`);
-        if (callback) {
-            callback(module);
-        }
-        return module;
-    }
+    await timedAwait(Promise.all([requirePromise, ...(extraPaths.map(load))]), `overall load of dependency ${name} for ${parent}`);
+    const module = await timedAwait(dependency.promise,
+        `loadedDependency promise for ${name} from ${parent} after requirePromise resolved!`);
+    callback?.(module);
+    return module;
 }
 
 function load(urls: string[] | string): Promise<void | void[]> {
-    if ((window as any).loadjs === undefined) {
-        (window as any).loadjs = load;
-    }
+    (window as any).loadjs ??= load;
 
     if (!(urls instanceof Array)) {
         return loadSingle(urls);
