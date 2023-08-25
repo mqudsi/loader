@@ -175,7 +175,6 @@ type RequireDefine = ((_1: any, _2: any, _3: any) => Promise<void>) & {
     exports: object;
     amd: boolean;
     called: boolean;
-    promise: Promise<void>;
 };
 
 function makeDefine(autoName: string, resolveModule: (resolution: any) => any, parent?: string): RequireDefine {
@@ -239,20 +238,13 @@ function makeDefine(autoName: string, resolveModule: (resolution: any) => any, p
         }
 
         return timedAwait(innerDefine(name, deps, callback), `define after eval of ${name} by ${parent}`)
-            .then(module => {
-                // loadedDependencies must contain the newly loaded module before we resolve the promise;
-                // that is taken care of by the call to `define(..)`.
-                resolveModule(module);
-                resolveDefine(module);
-            });
+            .then(resolveModule);
     };
 
-    let resolveDefine: (_: any) => void;
     const define: RequireDefine = Object.assign(localDefine, {
         exports: {},
         amd: true,
         called: false,
-        promise: new Promise<void>((resolve, _) => { resolveDefine = resolve; }),
     });
     return define;
 };
@@ -358,7 +350,7 @@ async function requireAsync(name: string | string[], callback?: RequireCallback,
     debug.log(`Loading ${name} from ${path}`);
     const xhr = new XMLHttpRequest();
     const requirePromise = new Promise((resolve, reject) => {
-        xhr.onreadystatechange = async function() {
+        xhr.onreadystatechange = function() {
             if (this.readyState === 4 && this.status === 200) {
                 const js = xhr.responseText;
                 const define = makeDefine(name, resolve, parent);
@@ -374,12 +366,7 @@ async function requireAsync(name: string | string[], callback?: RequireCallback,
                 debug.debug(`finished eval of ${name}`);
                 if (define.called) {
                     // Loaded an AMD/UMD module
-                    await timedAwait(define.promise, `define.promise for ${name} after define was definitively called!`);
-                    const moduleResult: unknown = dependency.module;
-                    if (!moduleResult) {
-                        throw new Error("define.promise resolved but module is still undefined!");
-                    }
-                    debug.log(`loaded AMD module ${name}`, moduleResult);
+                    debug.log(`loaded AMD module ${name}`, dependency.module);
                 } else {
                     // Don't use the `exports` name/reference because if module.exports is overridden
                     // by the eval'd code, exports may no longer point to the same entity.
