@@ -123,7 +123,7 @@ type RequireCallback = (..._: any[]) => unknown;
 const loadedDependencies: { [key: string]: (LoadedDependency | undefined) } = {};
 (<any> window).loadedDependencies = loadedDependencies;
 // debug.log(loadedDependencies, (<any>window).loadedDependencies);
-async function innerDefine(name: string, dependencies: string[], callback: RequireCallback): Promise<void> {
+async function innerDefine(name: string, dependencies: string[], callback: RequireCallback): Promise<unknown> {
     debug.log(`define() for ${name} called`);
     let exportsImported = false;
     const exports = {};
@@ -160,6 +160,7 @@ async function innerDefine(name: string, dependencies: string[], callback: Requi
     }
     dependency.module = module;
     dependency.resolve(module);
+    return module;
 }
 (<any> window).define = function(name: string, dependencies: string[], callback: RequireCallback) {
     const dependency = new LoadedDependency(name);
@@ -354,7 +355,7 @@ async function requireAsync(name: string | string[], callback?: RequireCallback,
         path += ".js";
     }
 
-    debug.log(`Loading ${path} as ${name}`);
+    debug.log(`Loading ${name} from ${path}`);
     const xhr = new XMLHttpRequest();
     const requirePromise = new Promise((resolve, reject) => {
         xhr.onreadystatechange = async function() {
