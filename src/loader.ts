@@ -278,7 +278,7 @@ async function timedAwait<T>(promise: Promise<T>, name: string) {
 };
 
 // For compatibility with require.js and alameda.js, allow require.config({paths: []}) to be used instead of an importmap.
-(<any> globalThis).require.config = function(config: { paths: { [name: string]: string } }) {
+(<any> window).require.config = function(config: { paths: { [name: string]: string } }) {
     for (const name in config.paths) {
         importMap[name] = [config.paths[name]];
     }
