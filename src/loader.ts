@@ -482,7 +482,7 @@ interface HTMLScriptElement {
 }
 
 function loadjs(url: string) {
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<unknown>((resolve, reject) => {
         const script = document.createElement("script");
         script.async = true;
         script.type = "text/javascript";
@@ -498,7 +498,7 @@ function loadjs(url: string) {
                 // readyState "loaded" *may* (or may not) indicate an error.
                 if (!this.readyState || this.readyState === "complete") {
                     document.head.appendChild(script);
-                    resolve();
+                    resolve({});
                 } else if (this.readyState === "loaded") {
                     // Attempting to enumerate the children of the script tag
                     // will result in s.readyState changing to "loading" if
@@ -512,14 +512,14 @@ function loadjs(url: string) {
                     if ((<HTMLScriptElement["readyState"]> this.readyState) === "loading") {
                         // The transition from loaded => loading can only happen
                         // if an error was encountered.
-                        reject();
+                        reject("Error loading " + url);
                     } else {
-                        resolve();
+                        resolve({});
                     }
                 }
             };
         } else {
-            script.onload = () => resolve();
+            script.onload = resolve;
             script.onerror = reject;
             document.head.appendChild(script);
         }
