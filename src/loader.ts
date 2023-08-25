@@ -64,11 +64,11 @@ const importMap: { [name: string]: [string] } = (function() {
     return importMap;
 })();
 
-class LoadedDependency {
+class LoadedDependency<T = unknown> {
     public name: string;
     public module?: unknown;
-    public promise: Promise<unknown>;
-    public resolve!: (_: unknown) => void;
+    public promise: Promise<T>;
+    public resolve!: (module: T) => void;
 
     public constructor(name: string) {
         this.name = name;
@@ -117,15 +117,19 @@ const debug = {
 };
 /* eslint-enable no-console */
 
-type RequireCallback = (..._: any[]) => unknown;
+type RequireCallback<R> = (... deps: unknown[]) => R;
 // Map isn't available under ES5
 // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
-const loadedDependencies: { [key: string]: (LoadedDependency | undefined) } = {};
-(<any> window).loadedDependencies = loadedDependencies;
+const loadedDependencies: Record<string, LoadedDependency> = {};
 // debug.log(loadedDependencies, (<any>window).loadedDependencies);
-async function innerDefine(name: string, dependencies: string[], callback: RequireCallback): Promise<unknown> {
+
+// We take advantage of the fact that define() conventionally returns no value to have it
+// return a promise that evaluates to the module being defined.
+async function innerDefine<R>(name: string, dependencies: string[], callback: RequireCallback<R>): Promise<R> {
     debug.log(`define() for ${name} called`);
     let exportsImported = false;
+    // To load CommonJS modules, we define `exports`, the loaded script depends on the literal string "exports", then assigns
+    // to the object. When control is returned back to us, the `exports` object should/will contain the module's exports.
     const exports = {};
     const loadedDeps = await Promise.all(dependencies.map(async dependency => {
         if (dependency === "exports") {
@@ -139,18 +143,19 @@ async function innerDefine(name: string, dependencies: string[], callback: Requi
                 const thisPath = name.match(/\//) ? name : importMap[name][0];
                 dependency = thisPath.replace(/\/[^/]+$/, dependency.replace("./", "/"));
             }
-            return await timedAwait(requireAsync(dependency, undefined, name),
-                `require of dependency ${dependency} for define of ${name}`);
+            return await timedAwait(requireOne(dependency), `require of dependency ${dependency} for define of ${name}`);
         }
     }));
 
     // The module returns itself as the return value of the define callback
-    debug.log("loadedDeps for " + name, loadedDeps);
+    debug.log(`loadedDeps for ${name}`, loadedDeps);
     let module = callback.apply(null, loadedDeps);
     if (!module && exportsImported) {
-        module = exports;
+        // This must have been a CommonJS module, not an AMD/UMD one.
+        module = <R> exports;
     }
-    debug.log(`innerDefine looking up loadedDependency ${name}`);
+
+    // Now look up the dependency matching our name; it will have been added to loadedDependencies in the define() call.
     const dependency = loadedDependencies[name];
     if (!dependency) {
         throw new Error("Internal error. Dependency should already be in the dictionary.");
@@ -162,7 +167,8 @@ async function innerDefine(name: string, dependencies: string[], callback: Requi
     dependency.resolve(module);
     return module;
 }
-(<any> window).define = function(name: string, dependencies: string[], callback: RequireCallback) {
+
+(<any> window).define = function(name: string, dependencies: string[], callback: RequireCallback<unknown>) {
     const dependency = new LoadedDependency(name);
     loadedDependencies[name] = dependency;
     const localDefine = makeDefine(name, dependency.resolve);
@@ -177,7 +183,10 @@ type RequireDefine = ((_1: any, _2: any, _3: any) => Promise<void>) & {
     called: boolean;
 };
 
-function makeDefine(autoName: string, resolveModule: (resolution: any) => any, parent?: string): RequireDefine {
+// If define() was called transitively by dependency Foo after a call to require(), autoName will be the
+// name the dependent script Parent gave when requiring Foo. This is in comparison to cases where Foo
+// defines a name for itself as the first parameter of the call to define().
+function makeDefine<R>(autoName: string, resolveModule: (resolution: R) => void): RequireDefine {
     const localDefine = function(_1: any, _2: any, _3: any): Promise<void> {
         define.called = true;
 
@@ -229,15 +238,15 @@ function makeDefine(autoName: string, resolveModule: (resolution: any) => any, p
         }
 
         // Only one parameter left: the module itself
-        let callback: RequireCallback;
+        let callback: RequireCallback<R>;
         if (typeof args[0] === "function") {
-            callback = <RequireCallback> args[0];
+            callback = <RequireCallback<R>> args[0];
         } else {
             debug.log(`Instantiating ${autoName} via simple initialization`);
             callback = () => args[0];
         }
 
-        return timedAwait(innerDefine(name, deps, callback), `define after eval of ${name} by ${parent}`)
+        return timedAwait(innerDefine<R>(name, deps, callback), `define after eval of ${name} by ${parent}`)
             .then(resolveModule);
     };
 
@@ -260,48 +269,55 @@ async function timedAwait<T>(promise: Promise<T>, name: string) {
     return result;
 }
 
-// tsc complains on top-level `require` directly; rely on `window` contents being directly accessible instead.
-(<any> window).require = function(_1: any, _2?: any): any {
-    if (arguments.length === 1 && typeof _1 === "string") {
+// Synchronously return a single, previously loaded dependency.
+function _require(name: string) : unknown;
+// Asynchronously load dependencies then forward them to the callback. Bubble back callback result.
+function _require<R>(name: string[], callback: RequireCallback<R>) : Promise<R>;
+// Asynchronously load dependencies then return them via the promise.
+function _require(name: string[]) : Promise<unknown[]>;
+
+function _require<R>(nameOrNames: string | string[], callback?: RequireCallback<R>) : unknown | Promise<R> {
+    if (typeof nameOrNames === "string") {
+        const name = nameOrNames;
         // This is the synchronous version of require() that can only load previously loaded and cached modules
-        debug.log(`require looking up loadedDependency ${_1}`);
-        const dependency = loadedDependencies[_1];
+        debug.log(`require looking up loadedDependency ${name}`);
+        const dependency = loadedDependencies[name];
         if (dependency && dependency.module) {
             return dependency.module;
         } else {
-            throw new Error(`${_1} has not been previously loaded asynchronously! Use \`require([name], callback)\` instead.`);
+            throw new Error(`${name} has not been previously loaded asynchronously! Use \`require([name], callback)\` instead.`);
         }
     }
 
-    // Default asynchronous method
-    return requireAsync(_1, _2);
+    // Default asynchronous approach
+    const names = nameOrNames;
+    // The promise evaluates to the result of the callback, if a callback is provided. Otherwise it evaluates to the dependencies.
+    return Promise.all(names.map(requireOne))
+        .then(deps => {
+            if (callback) {
+                return callback.apply(null, deps);
+            }
+            return deps;
+        });
 };
 
-// For compatibility with require.js and alameda.js, allow require.config({paths: []}) to be used instead of an importmap.
-(<any> window).require.config = function(config: { paths: { [name: string]: string } }) {
-    for (const name in config.paths) {
-        importMap[name] = [config.paths[name]];
-    }
-};
+// tsc complains on top-level `require` directly; rely on `window` contents being directly accessible instead.
+(<any> window).require = Object.assign(_require, {
+    // For compatibility with require.js and alameda.js, allow require.config({paths: []}) to be used instead of an importmap.
+    config: function(config: { paths: { [name: string]: string } }) {
+        for (const name in config.paths) {
+            importMap[name] = [config.paths[name]];
+        }
+    },
+    loadedDependencies: loadedDependencies,
+});
 
 // Check if input has an extension. Extension may not be the last thing, as query string parameters are considered.
 const hasExtensionRegex = /\.[^\/]+$/;
-async function requireAsync(name: string | string[], callback?: RequireCallback, parent?: string): Promise<any> {
-    // ES3 and ES5 don't support accessing `arguments` in an async function
-    debug.log("requireAsync called with arguments ", name, callback, parent);
 
-    // If we're being called directly by an external script, the async form takes an array as the first parameter.
-    if (Array.isArray(name)) {
-        const deps = await Promise.all(name.map(dep => requireAsync(dep, undefined, parent)));
-        callback?.apply(null, deps);
-        return undefined;
-    }
-
+async function requireOne(name: string) : Promise<unknown> {
     {
-        // This scope is unnecessary but it stops TypeScript from confusing a
-        // possibly null/undefined `dependency` with the definitely valid one
-        // that we later assign to it.
-        debug.log(`requireAsync looking up loadedDependency ${name}`);
+        // Check if the dependency has already been loaded
         const dependency = loadedDependencies[name];
         if (dependency) {
             // Either already loaded or simultaneously being loaded.
@@ -309,11 +325,7 @@ async function requireAsync(name: string | string[], callback?: RequireCallback,
         }
     }
 
-    if (parent) {
-        debug.log(`${parent} is loading ${name}`);
-    } else {
-        debug.log(`loading ${name}`);
-    }
+    debug.log(`loading ${name}`);
     const dependency = new LoadedDependency(name);
     loadedDependencies[name] = dependency;
 
@@ -324,8 +336,8 @@ async function requireAsync(name: string | string[], callback?: RequireCallback,
         if (!urls || !urls[0]) {
             throw new Error(`${name} missing from import map!`);
         }
-        path = urls[0];
-        extraPaths = urls.slice(1);
+        path = urls.shift()!;
+        extraPaths = urls;
     }
 
     // Re-map TypeScript files
@@ -339,11 +351,11 @@ async function requireAsync(name: string | string[], callback?: RequireCallback,
 
     debug.log(`Loading ${name} from ${path}`);
     const xhr = new XMLHttpRequest();
-    const requirePromise = new Promise((resolve, reject) => {
+    const mainScript = new Promise((resolve, reject) => {
         xhr.onreadystatechange = function() {
             if (this.readyState === 4 && this.status === 200) {
                 const js = xhr.responseText;
-                const define = makeDefine(name, resolve, parent);
+                const define = makeDefine(name, resolve);
 
                 // This must be defined; the evaluated JS might use it if it only understands CommonJS
                 const exports = define.exports;
@@ -367,6 +379,8 @@ async function requireAsync(name: string | string[], callback?: RequireCallback,
                     } else {
                         debug.log(`loaded global/legacy script ${name}`);
                     }
+                    // Resolve the dependency immediately, even if we have other associated scripts or stylesheets to load.
+                    // This lets subsequent modules depending on this module/script's exports to load in turn.
                     dependency.module = module.exports;
                     dependency.resolve(module.exports);
                     resolve(module.exports);
@@ -378,31 +392,28 @@ async function requireAsync(name: string | string[], callback?: RequireCallback,
         xhr.send();
     });
 
-    // We wait for the resolution which guarantees loadedDependencies contains this self-same module
-    await timedAwait(Promise.all([requirePromise, ...(extraPaths.map(load))]), `overall load of dependency ${name} for ${parent}`);
-    const module = await timedAwait(dependency.promise,
-        `loadedDependency promise for ${name} from ${parent} after requirePromise resolved!`);
-    // Don't bother calling callback, we never set it internally for non-array require calls.
-    return module;
+    // Wait for all dependencies associated with this name to be loaded asynchronously
+    const results = await timedAwait(Promise.all([mainScript, ...(extraPaths.map(load))]), `overall load of dependency ${name} for ${parent}`);
+    // The module is the first promise (the only one guaranteed to be present)
+    return results[0];
 }
 
 function load(urls: string[] | string): Promise<void | void[]> {
-    (window as any).loadjs ??= load;
-
     if (!(urls instanceof Array)) {
         return loadSingle(urls);
     }
 
-    const promises = [];
+    const promises: Promise<void>[] = [];
     for (const url of urls) {
         promises.push(loadSingle(url));
     }
 
     return Promise.all(promises);
 }
+(window as any).loadjs ??= load;
 
 async function loadSingle(url: string) {
-    let start;
+    let start: number | undefined;
     if (DEBUG) {
         // debug.log(`Starting load of ${url}`);
         start = new Date().getTime();
@@ -464,6 +475,12 @@ function loadCss(url: string) {
     });
 }
 
+// Make TypeScript aware of legacy HTMLScriptElement properties
+interface HTMLScriptElement {
+  onreadystatechange: ((this: HTMLScriptElement, ev: Event) => void) | null;
+  readyState: 'uninitialized' | 'loading' | 'loaded' | 'interactive' | 'complete';
+}
+
 function loadjs(url: string) {
     return new Promise<void>((resolve, reject) => {
         const script = document.createElement("script");
@@ -476,16 +493,13 @@ function loadjs(url: string) {
         // number. Inserting the script element into the DOM breaks load
         // detection, so we only do that at the very end.
         if (script.onload === undefined) {
-            const s = script as any;
-            s.onreadystatechange = () => {
-                // A readyState in (complete, completed) indicates success,
-                // but readyState == loaded *may* indicate an error.
-                if (!s.readyState
-                    || s.readyState === "complete"
-                    || s.readyState === "completed") {
+            script.onreadystatechange = function() {
+                // A readyState "complete" indicates success, but
+                // readyState "loaded" *may* (or may not) indicate an error.
+                if (!this.readyState || this.readyState === "complete") {
                     document.head.appendChild(script);
                     resolve();
-                } else if (s.readyState === "loaded") {
+                } else if (this.readyState === "loaded") {
                     // Attempting to enumerate the children of the script tag
                     // will result in s.readyState changing to "loading" if
                     // there is an error (yes, it's a hack - but then again, I
@@ -493,7 +507,9 @@ function loadjs(url: string) {
                     // will change this behavior any time soon!)
                     /* tslint:disable-next-line: no-empty */
                     (function(_) { })(script.children);
-                    if (s.readyState === "loading") {
+                    // TypeScript is being obtuse and refusing to realize that readyState
+                    // could have changed since we last looked at it!
+                    if ((<HTMLScriptElement["readyState"]> this.readyState) === "loading") {
                         // The transition from loaded => loading can only happen
                         // if an error was encountered.
                         reject();
