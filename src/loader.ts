@@ -117,7 +117,7 @@ const debug = {
 };
 /* eslint-enable no-console */
 
-type RequireCallback<R> = (... deps: unknown[]) => R;
+type RequireCallback<R> = (...deps: unknown[]) => R;
 // Map isn't available under ES5
 // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
 const loadedDependencies: Record<string, LoadedDependency> = {};
@@ -177,7 +177,8 @@ async function innerDefine<R>(name: string, dependencies: string[], callback: Re
 
 // A define function that is called from within a require context, e.g. where the name is determined
 // by the preceding call to require and not by the call to define.
-type RequireDefine = ((_1: any, _2: any, _3: any) => Promise<void>) & {
+type RequireDefine = {
+    (_1: any, _2: any, _3: any): Promise<void>;
     exports: object;
     amd: boolean;
     called: boolean;
@@ -187,15 +188,48 @@ type RequireDefine = ((_1: any, _2: any, _3: any) => Promise<void>) & {
 // name the dependent script Parent gave when requiring Foo. This is in comparison to cases where Foo
 // defines a name for itself as the first parameter of the call to define().
 function makeDefine<R>(autoName: string, resolveModule: (resolution: R) => void): RequireDefine {
-    const localDefine = function(_1: any, _2: any, _3: any): Promise<void> {
+    type Factory = (...deps: any[]) => R;
+    type Definition = R | Factory;
+
+    function isFunction(value: any): value is (...args: any[]) => any {
+        return typeof value === "function";
+    }
+
+    // Define a module without supplying a name. (Name is supplied by parent pointing to this script.)
+    function localDefine(definition: Definition): Promise<R>;
+    // Define a module that has dependencies, again without supplying a name.
+    function localDefine(deps: string[], factory: Factory): Promise<R>;
+
+    // Define a module also supplying a name.
+    function localDefine(name: string, definition: Definition): Promise<R>;
+    // Define a module that has dependencies, also supplying a name.
+    function localDefine(name: string, deps: string[], factory: Factory): Promise<R>;
+
+    function localDefine(_1: string | Definition | string[],
+        _2?: Definition | string[],
+        _3?: Factory
+    ): Promise<R> {
         define.called = true;
+
+        if (arguments.length === 0) {
+            throw new Error("Unknown define mode (called with no arguments)!");
+        }
 
         let name = autoName;
         const args = Array.prototype.slice.call(arguments);
+        if (args.length === 1) {
+            const arg = <Definition> args[0];
+            // Define via value or factory
+            const result = isFunction(arg) ? arg() : arg;
+            resolveModule(result);
+            return (async () => result)();
+        }
+
         if (args.length > 1) {
+            // Eliminate all cases with the name as the first parameter
             if (typeof args[0] === "string") {
-                name = <string> args.shift();
-                // Check for dependency require'd by path, defining itself by name.
+                name = args.shift();
+                // Check for dependency require'd by path, defining itself by a different name.
                 if (name !== autoName) {
                     debug.log(`Instantiating ${autoName} with an explicit name ${name}`);
                     // Make it available under both names
@@ -206,51 +240,41 @@ function makeDefine<R>(autoName: string, resolveModule: (resolution: R) => void)
                     loadedDependencies[name] = dependency;
                 }
             }
-        } else {
-            throw new Error("Unknown define mode!");
         }
 
-        // define with three arguments can only be with a fixed name as the first (handled above)
-        if (args.length > 2) {
-            debug.error("Unknown define mode", args);
-            throw new Error("Unknown define mode!");
-        }
+        // Now we only have two cases left: (definition: Definition) and (deps: string[], factory: Factory)
 
         let deps: string[] = [];
-        if (args.length === 2) {
-            // The only way we can have two parameters left is if the first is the dependencies
-            if (Array.isArray(args[0])) {
-                deps = <string[]> args.shift();
+        if (args.length > 1) {
+            if (args[0] instanceof Array) {
+                deps = args.shift();
+                // Try to resolve paths relative to the current module, e.g. cldr/event depending on ../cldr
+                for (let i = 0; i < deps.length; ++i) {
+                    while (deps[i].startsWith("../")) {
+                        deps[i] = deps[i].substring(3);
+                    }
+                }
             } else {
-                throw new Error("Unknown define mode");
+                throw new Error("Unknown define mode (expecting array of dependency names)");
             }
         }
 
-        if (deps.length > 0) {
-            debug.log(`${name} requested`, deps);
-        }
-
-        // Try to resolve paths relative to the current module, e.g. cldr/event depending on ../cldr
-        for (let i = 0; i < deps.length; ++i) {
-            while (deps[i].startsWith("../")) {
-                deps[i] = deps[i].substring(3);
-            }
-        }
-
-        // Only one parameter left: the module itself
+        // Now we only have one parameter left: the export or the factory to obtain it.
         let callback: RequireCallback<R>;
         if (typeof args[0] === "function") {
             callback = <RequireCallback<R>> args[0];
         } else {
-            debug.log(`Instantiating ${autoName} via simple initialization`);
             callback = () => args[0];
         }
 
-        return timedAwait(innerDefine<R>(name, deps, callback), `define after eval of ${name} by ${parent}`)
-            .then(resolveModule);
+        return timedAwait(innerDefine<R>(name, deps, callback), `define after eval of ${name}`)
+            .then(module => {
+                resolveModule(module);
+                return module;
+            });
     };
 
-    const define: RequireDefine = Object.assign(localDefine, {
+    const define: RequireDefine = Object.assign(<RequireDefine["call"]> localDefine, {
         exports: {},
         amd: true,
         called: false,
@@ -270,13 +294,13 @@ async function timedAwait<T>(promise: Promise<T>, name: string) {
 }
 
 // Synchronously return a single, previously loaded dependency.
-function _require(name: string) : unknown;
+function _require(name: string): unknown;
 // Asynchronously load dependencies then forward them to the callback. Bubble back callback result.
-function _require<R>(name: string[], callback: RequireCallback<R>) : Promise<R>;
+function _require<R>(name: string[], callback: RequireCallback<R>): Promise<R>;
 // Asynchronously load dependencies then return them via the promise.
-function _require(name: string[]) : Promise<unknown[]>;
+function _require(name: string[]): Promise<unknown[]>;
 
-function _require<R>(nameOrNames: string | string[], callback?: RequireCallback<R>) : unknown | Promise<R> {
+function _require<R>(nameOrNames: string | string[], callback?: RequireCallback<R>): unknown | Promise<R> {
     if (typeof nameOrNames === "string") {
         const name = nameOrNames;
         // This is the synchronous version of require() that can only load previously loaded and cached modules
@@ -315,7 +339,7 @@ function _require<R>(nameOrNames: string | string[], callback?: RequireCallback<
 // Check if input has an extension. Extension may not be the last thing, as query string parameters are considered.
 const hasExtensionRegex = /\.[^\/]+$/;
 
-async function requireOne(name: string) : Promise<unknown> {
+async function requireOne(name: string): Promise<unknown> {
     {
         // Check if the dependency has already been loaded
         const dependency = loadedDependencies[name];
@@ -393,7 +417,7 @@ async function requireOne(name: string) : Promise<unknown> {
     });
 
     // Wait for all dependencies associated with this name to be loaded asynchronously
-    const results = await timedAwait(Promise.all([mainScript, ...(extraPaths.map(load))]), `overall load of dependency ${name} for ${parent}`);
+    const results = await timedAwait(Promise.all([mainScript, ...(extraPaths.map(load))]), `overall load of dependency ${name}`);
     // The module is the first promise (the only one guaranteed to be present)
     return results[0];
 }
@@ -477,8 +501,8 @@ function loadCss(url: string) {
 
 // Make TypeScript aware of legacy HTMLScriptElement properties
 interface HTMLScriptElement {
-  onreadystatechange: ((this: HTMLScriptElement, ev: Event) => void) | null;
-  readyState: 'uninitialized' | 'loading' | 'loaded' | 'interactive' | 'complete';
+    onreadystatechange: ((this: HTMLScriptElement, ev: Event) => void) | null;
+    readyState: "uninitialized" | "loading" | "loaded" | "interactive" | "complete";
 }
 
 function loadjs(url: string) {
