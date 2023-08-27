@@ -416,13 +416,7 @@ function load(urls: string[] | string): Promise<void | void[]> {
     if (!(urls instanceof Array)) {
         return loadSingle(urls);
     }
-
-    const promises: Promise<void>[] = [];
-    for (const url of urls) {
-        promises.push(loadSingle(url));
-    }
-
-    return Promise.all(promises);
+    return Promise.all(urls.map(loadSingle));
 }
 (window as any).loadjs ??= load;
 
