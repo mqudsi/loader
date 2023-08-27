@@ -428,7 +428,7 @@ async function loadSingle(url: string) {
     }
 
     try {
-        if (/\.css$/i.test(url)) {
+        if (/\.css($|\?)/i.test(url)) {
             await loadCss(url);
         } else {
             await loadjs(url);
