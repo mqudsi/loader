@@ -258,10 +258,10 @@ function makeDefine<R>(autoName: string): RequireDefine {
             // the matching requireOne() call or the top-level window.define() call.
             const dependency = loadedDependencies[name];
             if (!dependency) {
-                throw new Error("Internal error. Dependency should already be in the dictionary.");
+                throw new Error(`Internal error. Dependency ${name} should already be in the dictionary.`);
             }
             if (dependency.module) {
-                throw new Error("dependency defined more than once!");
+                throw new Error(`dependency ${name} defined more than once!`);
             }
             dependency.module = module;
             dependency.resolve(module);
@@ -370,7 +370,7 @@ async function requireOne(name: string): Promise<unknown> {
 
     debug.log(`Loading ${name} from ${path}`);
     const xhr = new XMLHttpRequest();
-    const mainScript = new Promise((resolve, reject) => {
+    const mainScript = new Promise((resolveXhr, rejectXhr) => {
         xhr.onreadystatechange = function() {
             if (this.readyState === 4 && this.status === 200) {
                 const js = xhr.responseText;
@@ -389,7 +389,7 @@ async function requireOne(name: string): Promise<unknown> {
                     // Loaded an AMD/UMD module; dependency was resolved in innerDefine()
                     dependency.promise.then(module => {
                         debug.log(`loaded AMD module ${name}`, module);
-                        resolve(module);
+                        resolveXhr(module);
                     });
                 } else {
                     // Don't use the `exports` name/reference because if module.exports is overridden
@@ -406,11 +406,11 @@ async function requireOne(name: string): Promise<unknown> {
                     // This lets subsequent modules depending on this module/script's exports to load in turn.
                     dependency.module = module.exports;
                     dependency.resolve(module.exports);
-                    resolve(module.exports);
+                    resolveXhr(module.exports);
                 }
             }
         };
-        xhr.onerror = reject;
+        xhr.onerror = rejectXhr;
         xhr.open("GET", path);
         xhr.send();
     });
