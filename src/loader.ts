@@ -107,6 +107,18 @@ Object.prototype.assign ??= function <T, U>(target: T, source: U): T & U {
     return <T & U> target;
 };
 
+Array.prototype.map ??= function <T, U, C = undefined>(this: Array<T>, callback: (this: C extends undefined ? Array<T> : NonNullable<C>, value: T, index: number, array: T[]) => U, thisArg?: C): U[] {
+    const result: U[] = [];
+    const context = thisArg ?? this;
+    for (let i = 0; i < this.length; ++i) {
+        const t = this[i];
+        // See https://github.com/microsoft/TypeScript/issues/55533 for why <any> is required
+        const u = callback.call(<any> context, t, i, this);
+        result[i] = u;
+    }
+    return result;
+};
+
 /* eslint-disable no-console */
 const DEBUG = window.console && true;
 const debug = {
