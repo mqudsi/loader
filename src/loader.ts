@@ -23,7 +23,7 @@ if (!document.head) {
 }
 
 // Can be extended or overwritten with require.config({ paths: {..} })
-const importMap: { [name: string]: [string] } = (function() {
+const importMap: Record<string, string[]> = (function() {
     const mapEl: HTMLScriptElement | null = (function() {
         if (document.querySelector) {
             return document.querySelector("script[type=importmap]");
@@ -38,7 +38,7 @@ const importMap: { [name: string]: [string] } = (function() {
         }
     })();
 
-    let importMap: { [name: string]: [string] } = {};
+    let importMap: Record<string, string[]> = {};
     if (mapEl) {
         try {
             if (window.JSON && JSON.parse) {
@@ -55,7 +55,7 @@ const importMap: { [name: string]: [string] } = (function() {
         // Convert non-array dependencies to arrays
         for (const name in importMap) {
             const deps = importMap[name];
-            if (!Array.isArray(deps)) {
+            if (!(deps instanceof Array)) {
                 importMap[name] = [deps];
             }
         }
@@ -119,66 +119,19 @@ const debug = {
 
 type RequireCallback<R> = (...deps: unknown[]) => R;
 // Map isn't available under ES5
-// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
 const loadedDependencies: Record<string, LoadedDependency> = {};
-// debug.log(loadedDependencies, (<any>window).loadedDependencies);
-
-// We take advantage of the fact that define() conventionally returns no value to have it
-// return a promise that evaluates to the module being defined.
-async function innerDefine<R>(name: string, dependencies: string[], callback: RequireCallback<R>): Promise<R> {
-    debug.log(`define() for ${name} called`);
-    let exportsImported = false;
-    // To load CommonJS modules, we define `exports`, the loaded script depends on the literal string "exports", then assigns
-    // to the object. When control is returned back to us, the `exports` object should/will contain the module's exports.
-    const exports = {};
-    const loadedDeps = await Promise.all(dependencies.map(async dependency => {
-        if (dependency === "exports") {
-            exportsImported = true;
-            return exports;
-        } else if (dependency === "require") {
-            return (<any> window).require;
-        } else {
-            // Handle relative paths, e.g. ./foo/bar requesting ./baz should map to ./foo/baz
-            if (dependency.startsWith("./")) {
-                const thisPath = name.match(/\//) ? name : importMap[name][0];
-                dependency = thisPath.replace(/\/[^/]+$/, dependency.replace("./", "/"));
-            }
-            return await timedAwait(requireOne(dependency), `require of dependency ${dependency} for define of ${name}`);
-        }
-    }));
-
-    // The module returns itself as the return value of the define callback
-    debug.log(`loadedDeps for ${name}`, loadedDeps);
-    let module = callback.apply(null, loadedDeps);
-    if (!module && exportsImported) {
-        // This must have been a CommonJS module, not an AMD/UMD one.
-        module = <R> exports;
-    }
-
-    // Now look up the dependency matching our name; it will have been added to loadedDependencies in the define() call.
-    const dependency = loadedDependencies[name];
-    if (!dependency) {
-        throw new Error("Internal error. Dependency should already be in the dictionary.");
-    }
-    if (dependency.module) {
-        throw new Error("dependency loaded more than once!");
-    }
-    dependency.module = module;
-    dependency.resolve(module);
-    return module;
-}
 
 (<any> window).define = function(name: string, dependencies: string[], callback: RequireCallback<unknown>) {
     const dependency = new LoadedDependency(name);
     loadedDependencies[name] = dependency;
-    const localDefine = makeDefine(name, dependency.resolve);
+    const localDefine = makeDefine(name);
     localDefine(name, dependencies, callback);
 };
 
 // A define function that is called from within a require context, e.g. where the name is determined
 // by the preceding call to require and not by the call to define.
 type RequireDefine = {
-    (_1: any, _2: any, _3: any): Promise<void>;
+    (_1: any, _2: any, _3: any): void;
     exports: object;
     amd: boolean;
     called: boolean;
@@ -187,7 +140,7 @@ type RequireDefine = {
 // If define() was called transitively by dependency Foo after a call to require(), autoName will be the
 // name the dependent script Parent gave when requiring Foo. This is in comparison to cases where Foo
 // defines a name for itself as the first parameter of the call to define().
-function makeDefine<R>(autoName: string, resolveModule: (resolution: R) => void): RequireDefine {
+function makeDefine<R>(autoName: string): RequireDefine {
     type Factory = (...deps: any[]) => R;
     type Definition = R | Factory;
 
@@ -196,19 +149,16 @@ function makeDefine<R>(autoName: string, resolveModule: (resolution: R) => void)
     }
 
     // Define a module without supplying a name. (Name is supplied by parent pointing to this script.)
-    function localDefine(definition: Definition): Promise<R>;
+    function localDefine(definition: Definition): void;
     // Define a module that has dependencies, again without supplying a name.
-    function localDefine(deps: string[], factory: Factory): Promise<R>;
+    function localDefine(deps: string[], factory: Factory): void;
 
     // Define a module also supplying a name.
-    function localDefine(name: string, definition: Definition): Promise<R>;
+    function localDefine(name: string, definition: Definition): void;
     // Define a module that has dependencies, also supplying a name.
-    function localDefine(name: string, deps: string[], factory: Factory): Promise<R>;
+    function localDefine(name: string, deps: string[], factory: Factory): void;
 
-    function localDefine(_1: string | Definition | string[],
-        _2?: Definition | string[],
-        _3?: Factory
-    ): Promise<R> {
+    function localDefine(_1: string | Definition | string[], _2?: Definition | string[], _3?: Factory): void {
         define.called = true;
 
         if (arguments.length === 0) {
@@ -217,13 +167,6 @@ function makeDefine<R>(autoName: string, resolveModule: (resolution: R) => void)
 
         let name = autoName;
         const args = Array.prototype.slice.call(arguments);
-        if (args.length === 1) {
-            const arg = <Definition> args[0];
-            // Define via value or factory
-            const result = isFunction(arg) ? arg() : arg;
-            resolveModule(result);
-            return (async () => result)();
-        }
 
         if (args.length > 1) {
             // Eliminate all cases with the name as the first parameter
@@ -260,18 +203,48 @@ function makeDefine<R>(autoName: string, resolveModule: (resolution: R) => void)
         }
 
         // Now we only have one parameter left: the export or the factory to obtain it.
-        let callback: RequireCallback<R>;
-        if (typeof args[0] === "function") {
-            callback = <RequireCallback<R>> args[0];
-        } else {
-            callback = () => args[0];
-        }
+        const callback = isFunction(args[0]) ? <Factory> args[0] : () => args[0];
+        (async () => {
+            let exportsImported = false;
+            // To load CommonJS modules, we define `exports`, the loaded script depends on the literal string "exports", then assigns
+            // to the object. When control is returned back to us, the `exports` object should/will contain the module's exports.
+            const exports = {};
+            const loadedDeps = await Promise.all(deps.map(async dependency => {
+                if (dependency === "exports") {
+                    exportsImported = true;
+                    return exports;
+                } else if (dependency === "require") {
+                    return _require;
+                } else {
+                    // Handle relative paths, e.g. ./foo/bar requesting ./baz should map to ./foo/baz
+                    if (dependency.startsWith("./")) {
+                        const thisPath = name.match(/\//) ? name : importMap[name][0];
+                        dependency = thisPath.replace(/\/[^/]+$/, dependency.replace("./", "/"));
+                    }
+                    return await timedAwait(requireOne(dependency), `require of dependency ${dependency} for define of ${name}`);
+                }
+            }));
 
-        return timedAwait(innerDefine<R>(name, deps, callback), `define after eval of ${name}`)
-            .then(module => {
-                resolveModule(module);
-                return module;
-            });
+            // The module returns itself as the return value of the define callback
+            debug.log(`loadedDeps for ${name}`, loadedDeps);
+            let module = callback.apply(null, loadedDeps);
+            if (!module && exportsImported) {
+                // This must have been a CommonJS module, not an AMD/UMD one.
+                module = <R> exports;
+            }
+
+            // Now look up the dependency matching our name; it will have been added to loadedDependencies by
+            // the matching requireOne() call or the top-level window.define() call.
+            const dependency = loadedDependencies[name];
+            if (!dependency) {
+                throw new Error("Internal error. Dependency should already be in the dictionary.");
+            }
+            if (dependency.module) {
+                throw new Error("dependency defined more than once!");
+            }
+            dependency.module = module;
+            dependency.resolve(module);
+        })();
     };
 
     const define: RequireDefine = Object.assign(<RequireDefine["call"]> localDefine, {
@@ -294,13 +267,13 @@ async function timedAwait<T>(promise: Promise<T>, name: string) {
 }
 
 // Synchronously return a single, previously loaded dependency.
-function _require(name: string): unknown;
+function __require<R = unknown>(name: string): R;
 // Asynchronously load dependencies then forward them to the callback. Bubble back callback result.
-function _require<R>(name: string[], callback: RequireCallback<R>): Promise<R>;
+function __require<R>(name: string[], callback: RequireCallback<R>): Promise<R>;
 // Asynchronously load dependencies then return them via the promise.
-function _require(name: string[]): Promise<unknown[]>;
+function __require(name: string[]): Promise<unknown[]>;
 
-function _require<R>(nameOrNames: string | string[], callback?: RequireCallback<R>): unknown | Promise<R> {
+function __require<R>(nameOrNames: string | string[], callback?: RequireCallback<R>): unknown | Promise<R> {
     if (typeof nameOrNames === "string") {
         const name = nameOrNames;
         // This is the synchronous version of require() that can only load previously loaded and cached modules
@@ -326,7 +299,7 @@ function _require<R>(nameOrNames: string | string[], callback?: RequireCallback<
 };
 
 // tsc complains on top-level `require` directly; rely on `window` contents being directly accessible instead.
-(<any> window).require = Object.assign(_require, {
+const _require = Object.assign(__require, {
     // For compatibility with require.js and alameda.js, allow require.config({paths: []}) to be used instead of an importmap.
     config: function(config: { paths: { [name: string]: string } }) {
         for (const name in config.paths) {
@@ -335,6 +308,7 @@ function _require<R>(nameOrNames: string | string[], callback?: RequireCallback<
     },
     loadedDependencies: loadedDependencies,
 });
+(<any> window).require = __require;
 
 // Check if input has an extension. Extension may not be the last thing, as query string parameters are considered.
 const hasExtensionRegex = /\.[^\/]+$/;
@@ -379,11 +353,11 @@ async function requireOne(name: string): Promise<unknown> {
         xhr.onreadystatechange = function() {
             if (this.readyState === 4 && this.status === 200) {
                 const js = xhr.responseText;
-                const define = makeDefine(name, resolve);
+                const define = makeDefine(name);
 
                 // This must be defined; the evaluated JS might use it if it only understands CommonJS
                 const exports = define.exports;
-                const module = { exports };
+                const module = { exports, id: name };
 
                 debug.log(`importing ${name} via eval`);
                 // debug.debug(js);
@@ -391,8 +365,11 @@ async function requireOne(name: string): Promise<unknown> {
                 eval(js);
                 debug.debug(`finished eval of ${name}`);
                 if (define.called) {
-                    // Loaded an AMD/UMD module
-                    debug.log(`loaded AMD module ${name}`, dependency.module);
+                    // Loaded an AMD/UMD module; dependency was resolved in innerDefine()
+                    dependency.promise.then(module => {
+                        debug.log(`loaded AMD module ${name}`, module);
+                        resolve(module);
+                    });
                 } else {
                     // Don't use the `exports` name/reference because if module.exports is overridden
                     // by the eval'd code, exports may no longer point to the same entity.
@@ -403,6 +380,7 @@ async function requireOne(name: string): Promise<unknown> {
                     } else {
                         debug.log(`loaded global/legacy script ${name}`);
                     }
+                    // Since define() was not called by the loaded script, we need to resolve the dependency here.
                     // Resolve the dependency immediately, even if we have other associated scripts or stylesheets to load.
                     // This lets subsequent modules depending on this module/script's exports to load in turn.
                     dependency.module = module.exports;
