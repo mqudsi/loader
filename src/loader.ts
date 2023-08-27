@@ -55,7 +55,7 @@ const importMap: Record<string, string[]> = (function() {
         // Convert non-array dependencies to arrays
         for (const name in importMap) {
             const deps = importMap[name];
-            if (!(deps instanceof Array)) {
+            if (!Array.isArray(deps)) {
                 importMap[name] = [deps];
             }
         }
@@ -118,6 +118,15 @@ Array.prototype.map ??= function <T, U, C = undefined>(this: Array<T>, callback:
     }
     return result;
 };
+
+interface Array<T> {
+    isArray(foo: any): boolean;
+}
+
+Array.prototype.isArray ??= function(foo: any): boolean {
+    // This is more compatible than `return foo instanceof Array`, even if slower.
+    return Object.prototype.toString.call(foo) === '[object Array]';
+}
 
 /* eslint-disable no-console */
 const DEBUG = window.console && true;
@@ -201,7 +210,7 @@ function makeDefine<R>(autoName: string): RequireDefine {
 
         let deps: string[] = [];
         if (args.length > 1) {
-            if (args[0] instanceof Array) {
+            if (Array.isArray(args[0])) {
                 deps = args.shift();
                 // Try to resolve paths relative to the current module, e.g. cldr/event depending on ../cldr
                 for (let i = 0; i < deps.length; ++i) {
@@ -413,7 +422,7 @@ async function requireOne(name: string): Promise<unknown> {
 }
 
 function load(urls: string[] | string): Promise<void | void[]> {
-    if (!(urls instanceof Array)) {
+    if (!Array.isArray(urls)) {
         return loadSingle(urls);
     }
     return Promise.all(urls.map(loadSingle));
