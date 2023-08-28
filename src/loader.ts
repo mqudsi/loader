@@ -166,8 +166,7 @@ type RequireDefine = {
 // name the dependent script Parent gave when requiring Foo. This is in comparison to cases where Foo
 // defines a name for itself as the first parameter of the call to define().
 function makeDefine<R>(autoName: string): RequireDefine {
-    type Factory = (...deps: any[]) => R;
-    type Definition = R | Factory;
+    type Definition = R | RequireCallback<R>;
 
     function isFunction(value: any): value is (...args: any[]) => any {
         return typeof value === "function";
@@ -176,14 +175,14 @@ function makeDefine<R>(autoName: string): RequireDefine {
     // Define a module without supplying a name. (Name is supplied by parent pointing to this script.)
     function localDefine(definition: Definition): void;
     // Define a module that has dependencies, again without supplying a name.
-    function localDefine(deps: string[], factory: Factory): void;
+    function localDefine(deps: string[], factory: RequireCallback<R>): void;
 
     // Define a module also supplying a name.
     function localDefine(name: string, definition: Definition): void;
     // Define a module that has dependencies, also supplying a name.
-    function localDefine(name: string, deps: string[], factory: Factory): void;
+    function localDefine(name: string, deps: string[], factory: RequireCallback<R>): void;
 
-    function localDefine(_1: string | Definition | string[], _2?: Definition | string[], _3?: Factory): void {
+    function localDefine(_1: string | Definition | string[], _2?: Definition | string[], _3?: RequireCallback<R>): void {
         define.called = true;
 
         if (arguments.length === 0) {
@@ -210,7 +209,7 @@ function makeDefine<R>(autoName: string): RequireDefine {
             }
         }
 
-        // Now we only have two cases left: (definition: Definition) and (deps: string[], factory: Factory)
+        // Now we only have two cases left: (definition: Definition) and (deps: string[], factory: RequireCallback<R>)
 
         let deps: string[] = [];
         if (args.length > 1) {
@@ -228,7 +227,7 @@ function makeDefine<R>(autoName: string): RequireDefine {
         }
 
         // Now we only have one parameter left: the export or the factory to obtain it.
-        const callback = isFunction(args[0]) ? <Factory> args[0] : () => args[0];
+        const callback = isFunction(args[0]) ? <RequireCallback<R>> args[0] : () => args[0];
         (async () => {
             let exportsImported = false;
             // To load CommonJS modules, we define `exports`, the loaded script depends on the literal string "exports", then assigns
