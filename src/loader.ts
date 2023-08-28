@@ -120,12 +120,16 @@ Array.prototype.map ??= function <T, U, C = undefined>(this: Array<T>, callback:
 };
 
 interface Array<T> {
-    isArray(foo: any): boolean;
+    isArray(foo: any): foo is Array<any>;
 }
 
-Array.prototype.isArray ??= function(foo: any): boolean {
-    // This is more compatible than `return foo instanceof Array`, even if slower.
-    return Object.prototype.toString.call(foo) === '[object Array]';
+Array.prototype.isArray ??= function(foo: any): foo is Array<any> {
+    // This works everywhere but won't return true if the array was created in another
+    // frame or window (we aren't using it that way, but just in case).
+    const a = (foo: any) => foo instanceof Array;
+    // This works with arrays from other windows/frames, but doesn't work on IE6 and IE7.
+    const b = (foo: any) => Object.prototype.toString.call(foo) === "[object Array]";
+    return a(foo) || b(foo);
 }
 
 /* eslint-disable no-console */
