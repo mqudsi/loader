@@ -65,12 +65,7 @@ Array.prototype.map ??= function <T, U, C = undefined>(this: T[], callback: (thi
     return result;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-interface Array<T> {
-    isArray(foo: any): foo is any[];
-}
-
-Array.prototype.isArray ??= function(foo: any): foo is any[] {
+Array.isArray ??= function(this: never, foo: any): foo is any[] {
     // This works everywhere but won't return true if the array was created in another
     // frame or window (we aren't using it that way, but just in case).
     const a = (obj: any) => obj instanceof Array;
