@@ -53,7 +53,7 @@ Object.prototype.assign ??= function <T, U>(target: T, source: U): T & U {
     return <T & U> target;
 };
 
-Array.prototype.map ??= function <T, U, C = undefined>(this: Array<T>, callback: (this: C extends undefined ? Array<T> : NonNullable<C>, value: T, index: number, array: T[]) => U, thisArg?: C): U[] {
+Array.prototype.map ??= function <T, U, C = undefined>(this: T[], callback: (this: C extends undefined ? T[] : NonNullable<C>, value: T, index: number, array: T[]) => U, thisArg?: C): U[] {
     const result: U[] = [];
     const context = thisArg ?? this;
     for (let i = 0; i < this.length; ++i) {
@@ -65,18 +65,19 @@ Array.prototype.map ??= function <T, U, C = undefined>(this: Array<T>, callback:
     return result;
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface Array<T> {
-    isArray(foo: any): foo is Array<any>;
+    isArray(foo: any): foo is any[];
 }
 
-Array.prototype.isArray ??= function(foo: any): foo is Array<any> {
+Array.prototype.isArray ??= function(foo: any): foo is any[] {
     // This works everywhere but won't return true if the array was created in another
     // frame or window (we aren't using it that way, but just in case).
-    const a = (foo: any) => foo instanceof Array;
+    const a = (obj: any) => obj instanceof Array;
     // This works with arrays from other windows/frames, but doesn't work on IE6 and IE7.
-    const b = (foo: any) => Object.prototype.toString.call(foo) === "[object Array]";
+    const b = (obj: any) => Object.prototype.toString.call(obj) === "[object Array]";
     return a(foo) || b(foo);
-}
+};
 
 // Can be extended or overwritten with require.config({ paths: {..} })
 const importMap: Record<string, string[]> = (function() {
@@ -155,12 +156,12 @@ const loadedDependencies: Record<string, LoadedDependency> = {};
 
 // A define function that is called from within a require context, e.g. where the name is determined
 // by the preceding call to require and not by the call to define.
-type RequireDefine = {
+interface RequireDefine {
     (_1: any, _2: any, _3: any): void;
     exports: object;
     amd: boolean;
     called: boolean;
-};
+}
 
 // If define() was called transitively by dependency Foo after a call to require(), autoName will be the
 // name the dependent script Parent gave when requiring Foo. This is in comparison to cases where Foo
@@ -228,6 +229,7 @@ function makeDefine<R>(autoName: string): RequireDefine {
 
         // Now we only have one parameter left: the export or the factory to obtain it.
         const callback = isFunction(args[0]) ? <RequireCallback<R>> args[0] : () => args[0];
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
         (async () => {
             let exportsImported = false;
             // To load CommonJS modules, we define `exports`, the loaded script depends on the literal string "exports", then assigns
@@ -297,14 +299,14 @@ function __require<R>(name: string[], callback: RequireCallback<R>): Promise<R>;
 // Asynchronously load dependencies then return them via the promise.
 function __require(name: string[]): Promise<unknown[]>;
 
-function __require<R>(nameOrNames: string | string[], callback?: RequireCallback<R>): unknown | Promise<R> {
+function __require<R>(nameOrNames: string | string[], callback?: RequireCallback<R>): R | Promise<R | unknown[]> {
     if (typeof nameOrNames === "string") {
         const name = nameOrNames;
         // This is the synchronous version of require() that can only load previously loaded and cached modules
         debug.log(`require looking up loadedDependency ${name}`);
         const dependency = loadedDependencies[name];
         if (dependency && dependency.module) {
-            return dependency.module;
+            return <R> dependency.module;
         } else {
             throw new Error(`${name} has not been previously loaded asynchronously! Use \`require([name], callback)\` instead.`);
         }
@@ -325,12 +327,12 @@ function __require<R>(nameOrNames: string | string[], callback?: RequireCallback
 // tsc complains on top-level `require` directly; rely on `window` contents being directly accessible instead.
 const _require = Object.assign(__require, {
     // For compatibility with require.js and alameda.js, allow require.config({paths: []}) to be used instead of an importmap.
-    config: function(config: { paths: { [name: string]: string } }) {
+    config(config: { paths: { [name: string]: string } }) {
         for (const name in config.paths) {
             importMap[name] = [config.paths[name]];
         }
     },
-    loadedDependencies: loadedDependencies,
+    loadedDependencies,
 });
 (<any> window).require = __require;
 
@@ -390,10 +392,10 @@ async function requireOne(name: string): Promise<unknown> {
                 debug.debug(`finished eval of ${name}`);
                 if (define.called) {
                     // Loaded an AMD/UMD module; dependency was resolved in innerDefine()
-                    dependency.promise.then(module => {
-                        debug.log(`loaded AMD module ${name}`, module);
-                        resolveXhr(module);
-                    });
+                    dependency.promise.then(amdModule => {
+                        debug.log(`loaded AMD module ${name}`, amdModule);
+                        resolveXhr(amdModule);
+                    }).catch(rejectXhr);
                 } else {
                     // Don't use the `exports` name/reference because if module.exports is overridden
                     // by the eval'd code, exports may no longer point to the same entity.

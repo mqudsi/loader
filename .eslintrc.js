@@ -148,7 +148,8 @@ module.exports = {
         "no-invalid-this": "off",
         "no-multiple-empty-lines": "error",
         "no-new-wrappers": "error",
-        "no-shadow": [
+        "no-shadow": "off",
+        "@typescript-eslint/no-shadow": [
             "error",
             {
                 "ignoreOnInitialization": true,
