@@ -22,60 +22,6 @@ if (!document.head) {
     (<any> document).head = document.getElementsByTagName("head")[0];
 }
 
-// Can be extended or overwritten with require.config({ paths: {..} })
-const importMap: Record<string, string[]> = (function() {
-    const mapEl: HTMLScriptElement | null = (function() {
-        if (document.querySelector) {
-            return document.querySelector("script[type=importmap]");
-        } else {
-            const scriptTags = document.getElementsByTagName("script");
-            for (let i = 0; i < scriptTags.length; ++i) {
-                if (scriptTags[i].type === "importmap") {
-                    return scriptTags[i];
-                }
-            }
-            return null;
-        }
-    })();
-
-    let importMap: Record<string, string[]> = {};
-    if (mapEl) {
-        try {
-            if (window.JSON && JSON.parse) {
-                importMap = JSON.parse(mapEl.text).imports ?? {};
-            } else {
-                // eslint-disable-next-line no-eval
-                importMap = eval(`(${mapEl.text}).imports`) ?? {};
-            }
-        } catch (ex) {
-            // eslint-disable-next-line no-console
-            window.console?.error?.("Error parsing import map:", ex);
-        }
-
-        // Convert non-array dependencies to arrays
-        for (const name in importMap) {
-            const deps = importMap[name];
-            if (!Array.isArray(deps)) {
-                importMap[name] = [deps];
-            }
-        }
-    }
-
-    return importMap;
-})();
-
-class LoadedDependency<T = unknown> {
-    public name: string;
-    public module?: unknown;
-    public promise: Promise<T>;
-    public resolve!: (module: T) => void;
-
-    public constructor(name: string) {
-        this.name = name;
-        this.promise = new Promise((resolve, _reject) => this.resolve = resolve);
-    }
-}
-
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface String {
     startsWith(needle: string): boolean;
@@ -130,6 +76,60 @@ Array.prototype.isArray ??= function(foo: any): foo is Array<any> {
     // This works with arrays from other windows/frames, but doesn't work on IE6 and IE7.
     const b = (foo: any) => Object.prototype.toString.call(foo) === "[object Array]";
     return a(foo) || b(foo);
+}
+
+// Can be extended or overwritten with require.config({ paths: {..} })
+const importMap: Record<string, string[]> = (function() {
+    const mapEl: HTMLScriptElement | null = (function() {
+        if (document.querySelector) {
+            return document.querySelector("script[type=importmap]");
+        } else {
+            const scriptTags = document.getElementsByTagName("script");
+            for (let i = 0; i < scriptTags.length; ++i) {
+                if (scriptTags[i].type === "importmap") {
+                    return scriptTags[i];
+                }
+            }
+            return null;
+        }
+    })();
+
+    let importMap: Record<string, string[]> = {};
+    if (mapEl) {
+        try {
+            if (window.JSON && JSON.parse) {
+                importMap = JSON.parse(mapEl.text).imports ?? {};
+            } else {
+                // eslint-disable-next-line no-eval
+                importMap = eval(`(${mapEl.text}).imports`) ?? {};
+            }
+        } catch (ex) {
+            // eslint-disable-next-line no-console
+            window.console?.error?.("Error parsing import map:", ex);
+        }
+
+        // Convert non-array dependencies to arrays
+        for (const name in importMap) {
+            const deps = importMap[name];
+            if (!Array.isArray(deps)) {
+                importMap[name] = [deps];
+            }
+        }
+    }
+
+    return importMap;
+})();
+
+class LoadedDependency<T = unknown> {
+    public name: string;
+    public module?: unknown;
+    public promise: Promise<T>;
+    public resolve!: (module: T) => void;
+
+    public constructor(name: string) {
+        this.name = name;
+        this.promise = new Promise((resolve, _reject) => this.resolve = resolve);
+    }
 }
 
 /* eslint-disable no-console */
