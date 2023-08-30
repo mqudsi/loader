@@ -15,23 +15,25 @@ module.exports = {
         "@typescript-eslint",
         "@typescript-eslint/tslint",
         "import",
-        "prefer-arrow",
+        "prefer-arrow"
     ],
     "rules": {
         "prefer-arrow-callback": [
             "error",
             {
-                "allowUnboundThis": false,
+                "allowUnboundThis": false
             }
         ],
         "@typescript-eslint/unbound-method": "off",
         // Should disable no-unused-vars to use the ts version
         "no-unused-vars": "off",
-        "@typescript-eslint/no-unused-vars": [ "warn", {
-            argsIgnorePattern: "^_",
+        "@typescript-eslint/no-unused-vars": [
+            "warn",
+            {
+                "argsIgnorePattern": "^_"
             }
         ],
-        "@typescript-eslint/prefer-string-starts-ends-with": "warn",
+        "@typescript-eslint/prefer-string-starts-ends-with": "off",
         // We are not targeting a high-enough version of ES to use these methods
         "@typescript-eslint/explicit-function-return-type": "off",
         "@typescript-eslint/array-type": "error",
@@ -72,7 +74,6 @@ module.exports = {
         ],
         "@typescript-eslint/member-ordering": "error",
         "@typescript-eslint/no-explicit-any": "off",
-        "@typescript-eslint/no-parameter-properties": "off",
         "@typescript-eslint/no-use-before-define": "off",
         "@typescript-eslint/prefer-for-of": "off",
         "@typescript-eslint/prefer-function-type": "error",
@@ -125,7 +126,7 @@ module.exports = {
             "error",
             "any",
             "string",
-            "boolean",
+            "boolean"
         ],
         "id-match": "error",
         "import/order": "error",
