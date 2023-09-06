@@ -373,7 +373,7 @@ async function requireOne(name: string): Promise<unknown> {
     const mainScript = new Promise((resolveXhr, rejectXhr) => {
         xhr.onreadystatechange = function() {
             if (this.readyState === 4 && this.status === 200) {
-                const js = xhr.responseText;
+                const js = `${xhr.responseText}\n//# sourceURL=${path}`
                 const define = makeDefine(name);
 
                 // This must be defined; the evaluated JS might use it if it only understands CommonJS
